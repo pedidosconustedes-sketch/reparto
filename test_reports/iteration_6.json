@@ -1,0 +1,42 @@
+{
+  "summary": "Tested the iteration-7 features (business/comercio role, open orders and accept, profile photos, business accounts, register-push) on the backend and the Expo web frontend (375x667). Backend: 14 of 15 new pytest tests pass. The one failure: POST /api/biz/orders returns pickup/dest coordinates (only the GET endpoints strip them). Everything else works. Business login returns role=business. Business account PUT/DELETE is owner only, with 409 for an email already used by a business or the owner and 422 for a short password. account_email appears on GET /businesses/{bid}. /biz/* returns 403 for owner and courier tokens, and businesses are isolated from each other (404). /biz/couriers has no lat/lng. A business order with no courier gets open=true; with courier_id it is assigned. Biz cancel works only on nuevo/preparacion and sets open=false. Accept is atomic (the second accept gets 409) and the order moves to the courier's active list. Owner orders with open=true become open; assigning sets open=false. Profile photos upload as multipart and b64; GET /users/{uid}/photo works for the courier, the owner and the business, gives 404 for another courier and 401 for a bad token. register-push returns a clean JSON 500 and order creation still succeeds. A business token gets 403 on all owner endpoints. Frontend: all requested flows work. Login has 3 tabs. Business login goes to /biz. The new order screen in business mode has no business chips and no 'Sin asignar' option, only 'Libre' plus couriers with avatars. Creating an order opens /biz-order/{id} with the courier card and timeline, and no map. Courier 'Tareas libres' and accept-{n} work and move the task to active. The courier avatar opens the profile photo sheet. Owner business detail shows business-account-row and the sheet; saving works. Owner couriers list shows avatars. Deprecated packages detected: none.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/biz/orders", "issue": "Returns build_order() -> o.model_dump(), which includes pickup_lat/pickup_lng/dest_lat/dest_lng. The GET /biz/orders[/{id}] endpoints strip them through biz_order(). Wrap the response: return biz_order(created doc) or model_dump(exclude=...). server.py:1224"},
+      {"endpoint": "PATCH /api/biz/orders/{id}/cancel", "issue": "Returns set_status() output (full Order dump with coordinates). The response is also built BEFORE open=False is written, so it still says open=true for open orders. Re-read the order after the update and return biz_order(). server.py:1246-1250"},
+      {"endpoint": "PATCH /api/biz/orders/{id}/cancel", "issue": "On an already cancelled or delivered order the error message is 'Solo puedes cancelar pedidos que aún no se han recogido', which is misleading for cancelled orders."},
+      {"endpoint": "DELETE /api/couriers/{cid}", "issue": "Active orders are unassigned (courier_id=None) but keep open=false, so business-created orders become orphaned: not open, so no courier sees them in 'Tareas libres'. Consider setting open=True for created_by=business orders. server.py:795"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "order/new.tsx biz query", "issue": "React Query key collision. order/new.tsx:30 uses queryKey ['biz-me'] with a queryFn that returns an ARRAY [Business]. biz.tsx:25 uses the same key ['biz-me'] for a single Business OBJECT. Opening /order/new after /biz briefly reads the object (no .length), so the footer/submit is hidden and bizId stays null until the refetch. Back on /biz, me.data is an array, so the title falls back to user.name. Use a different key (e.g. ['biz-me-list']) or keep the same shape.", "testID": "create-order-submit", "priority": "MEDIUM"},
+      {"component": "biz-order/[id] timeline", "issue": "For a cancelled order the 'Seguimiento' timeline only shows 'Nuevo' and never a 'Cancelado' step. The call-courier button is still shown on cancelled orders.", "testID": "biz-order-status", "priority": "LOW"},
+      {"component": "business/[id] account sheet", "issue": "'Quitar acceso' deletes the business login instantly, with no confirmation step.", "testID": "business-account-delete", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/biz home order card", "issues": ["When the courier text is long ('Esperando que un repartidor acepte…'), the total '3,00 €' wraps onto 2 lines. Give the total flexShrink:0 (biz.tsx:64 / style total)."]},
+      {"screen": "/courier header", "issues": ["'Hola, Carlos' wraps onto 2 lines at 375px next to the online switch, SOS and logout buttons. Consider numberOfLines={1} or a smaller font."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter7_business_open_orders.py", "/app/test_reports/pytest/pytest_iter7.xml"],
+  "action_items": [
+    "Strip coordinates from the POST /api/biz/orders and PATCH /api/biz/orders/{id}/cancel responses (use biz_order()), and return open=false after cancel",
+    "Fix the ['biz-me'] queryKey collision between biz.tsx (object) and order/new.tsx (array)",
+    "Optional: show a 'Cancelado' step in the biz-order timeline and hide the call button when cancelled; add a confirmation to 'Quitar acceso'; re-open business orders when their courier is deleted; prevent the total wrapping on the biz card"
+  ],
+  "critical_code_review_comments": [
+    "Owner and business share POST /auth/login. Email uniqueness across roles is enforced only in PUT /businesses/{bid}/account (the owner register is disabled), which is fine today.",
+    "The photo URL passes the JWT as a ?token= query param (it can show up in proxy/access logs). This is an accepted pattern for <Image>, but consider short-lived photo tokens.",
+    "server.py is 1414 lines, above the 700-line guideline. Split it into routers (auth, biz, courier, orders)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter7_business_open_orders.py"],
+  "success_rate": {"backend": "93% (14/15)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "Test orders were created and then cancelled (TEST_Cliente, TEST_UI_Libre #1296, TEST_UI_Asignado #1297). A TEST_Biz business was created and deleted. Lucía Pérez's profile photo was REPLACED with a generated test gradient PNG (multipart and b64 upload tests). The cafe@delivery.com password was re-saved through the UI with the same value, Comercio123, and login was verified afterwards. Pre-existing open order #1289 'Test' was left untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: export EXPO_PUBLIC_BACKEND_URL=... && pytest /app/backend/tests/test_iter7_business_open_orders.py. Courier IDs: Carlos 6ae347236362b29c3e2fb5d7, Lucía 6ae347236362b29c3e2fb5d8. The owner tab bar has no testIDs; navigate with get_by_text('Gestión'). Manage tabs: manage-tab-biz / manage-tab-couriers. The iframe found on the pages is an Expo/platform iframe, not a map."
+}

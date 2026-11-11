@@ -1,0 +1,7 @@
+node_modules/
+_pycache_/
+.env
+backup_datos/
+.expo/
+dist/
+build/

@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 18: road-distance billing (Google Routes computeRoutes), km quote, business km orders, amount 0 -> pagado, address edit with re-pricing (owner + business, also after the courier accepted), owner Orders date range. Backend: 13/13 new tests passed. The iter16 regression passed 10/10 after one outdated expectation was updated (businesses now see delivery_fee). Logs show Google Routes and Places searchText return 200, so no OSRM fallback. UI at 390x844 passes for all 3 flows: biz-order fee row '7.32 km 5,66 €' -> after the address change '8.78 km 6,39 €', the incidents card, edit-address sheet with suggestion pick, the owner 'Cambiar dirección' with free-text geocode (2.81 km / 3,41 €), and the range toggle with summary, calendar and status filter. Main finding: for some destinations Google's 'shortest of alternatives' is much longer than the real shortest route, because raw latLng waypoints snap to the wrong carriageway (see rca). No deprecated Expo packages detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "route_km (server.py:1337)", "issue": "Sol (40.4169,-3.7035) -> Plaza de Castilla (40.4669,-3.6889): computeRoutes returns 19.85/16.11/11.38 km, so 11.38 km is billed. OSRM gives 6.65 km and the straight line is ~5.7 km. The raw latLng waypoints snap to the far side of a divided avenue, which adds loops. With vehicleStopover:true on origin/destination, the shortest becomes 8.95 km; also asking for a routeModifiers.avoidHighways variant and taking the min gives 8.67 km. Sol -> Bernabéu stays 7.32 km either way."},
+      {"endpoint": "PATCH /api/orders/{id}/address, /api/biz/orders/{id}/address", "issue": "If the new address cannot be geocoded (e.g. 'zzqxw qqqzx 99999 xx'), dest_lat/lng become null but distance_km (2.81) and delivery_fee stay from the OLD address. The values are stale and nobody is warned. Clear distance_km (or fall back to default_fee) and tell the user, or return 400."},
+      {"endpoint": "GET /api/places/details (server.py:1175)", "issue": "No languageCode=es/regionCode=es, so the saved address is in English ('Pl. Castilla, 28046 Madrid, Spain') while the suggestion text was 'Plaza Castilla, Madrid, España'."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "(owner)/orders", "issues": ["orders-range-toggle is 40px high (<44 touch target)", "Summary text is not singular-aware for entregados/cancelados ('1 entregados')", "The status chip counts (e.g. 'Nuevo 5') come from /dashboard and ignore the selected date range"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter18_route_km_address_edit.py", "/app/backend/tests/seed_ui_iter18.py", "/app/test_reports/pytest/pytest_iter18.xml"],
+  "action_items": [
+    "route_km: add \"vehicleStopover\": true to the origin/destination waypoints (optionally also request routeModifiers.avoidHighways and take the min). Otherwise latLng snapping on divided avenues inflates the billed km by a lot (11.38 vs ~6.7-8.7 km for Sol -> Plaza de Castilla).",
+    "change_address: when geocode returns None, reset distance_km (and the fee to default_fee for km pricing) or reject with 400 'No encontramos la dirección', so the old distance/fee is not kept.",
+    "places_details: pass languageCode=es&regionCode=es so saved addresses are in Spanish.",
+    "Orders range toggle: set minHeight 44."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 2044 lines; it should be split into modules (orders, businesses, geo, auth).",
+    "change_address recalculates the fee even for owner-created orders where the admin typed a manual fee. That matches the request, but the admin's manual override is silently replaced.",
+    "The courier_paid guard in change_address is effectively unreachable, because courier_paid is only set on delivered orders, which are rejected first. Harmless.",
+    "DELETE /api/businesses/{bid} does not remove or archive that business's orders, so orphaned orders keep counting in courier payouts and reports."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter18_route_km_address_edit.py (new)", "/app/backend/tests/seed_ui_iter18.py (new)", "/app/backend/tests/test_iter16_admins_km_incidents.py (updated outdated expectation: businesses now see delivery_fee)"],
+  "success_rate": {"backend": "100% (23/23 incl. iter16 regression)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "A TEST_ km business, a business account and orders were created and then fully deleted (businesses, accounts and orders, including the TEST_open/TEST_pay cancelled orders left by the iter16 suite). No seed business settings were changed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use admin@delivery.com/Admin12345 only. Run tests with -n 0. `python tests/seed_ui_iter18.py seed|cleanup` creates and removes the UI data; cleanup deletes orders whose business_name starts with TEST_. Business detail testIDs: biz-fee-row, biz-incidents, biz-edit-address. Sheet testIDs: edit-address-sheet, edit-dest-input, edit-dest-suggestion-N, edit-address-save. Calendar testIDs: calendar-prev-month, calendar-day-N, orders-range-from/to(-label). The server clock is 2026-11-01.",
+  "rca_of_issue": "Billed km inflated: computeRoutes snaps a raw latLng to the nearest road segment, which can be the opposite carriageway of a divided avenue or a ramp. The routes then include U-turn loops, and computeAlternativeRoutes alternatives are time-optimal, not distance-optimal. Repro: POST computeRoutes Sol -> (40.4669,-3.6889) returns min 11376 m. Mitigation: vehicleStopover:true (8948 m) plus an avoidHighways variant (8665 m)."
+}

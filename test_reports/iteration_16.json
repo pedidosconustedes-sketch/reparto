@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 16: I tested the backend (new suite of 10 tests, all passing; full regression run 190/200, and the 10 failures are stale tests) and the UI at 390x844. All the requested features work end to end. Main admin login works and /auth/me returns is_main=true. Secondary admins (LINKED and INDEPENDENT) can be created, listed and deleted, and secondaries get 403. LINKED secondaries share the main account's data and get 403 on account creation. INDEPENDENT secondaries are isolated in both directions. Km pricing works: the OSRM quote for 6.65 km gave 7.65 EUR, which matches 3 + (km-2)*1. Business orders are auto-priced, store distance_km and never expose the fee. Orders preselect 'enviar a todos' and are saved with open=true. The date-range filters work for owner Órdenes, courier history and the business portal. Incidents can be created by the courier and show in the owner detail and on the card. Named emergency phones and business phones work, including the call-list-sheet. The ImageViewer opens for delivery photos and courier avatars. Both payment regressions are fixed: Datáfono is kept after clearing and retyping the amount, and Pagado at 0 then typing an amount gives Efectivo. CRITICAL DATA ISSUE: two separate owner documents now have the email pedidosconustedes@gmail.com.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/auth/login (users collection)", "issue": "Two separate owner documents have email pedidosconustedes@gmail.com, and neither has a parent_id, so both are main admins. (a) 6ae347236362b29c3e2fb5c8 is the seeded admin, formerly admin@delivery.com: Café Aroma, Pizzería Napoli, Farmacia Central, Carlos and Lucía. (b) 6ae34bf6c4b986a63025ed26 'Pedidosconustedes', created 2026-10-29, is the REAL user's account: businesses Verde and Flores menchu, 51 orders, couriers Rafael, Jose, Carlos Garcés, Alberto, Joseph. That account is still active through an existing token: it created the linked admin jmgs48642@gmail.com today. Login does find_one by email and returns the seeded doc (a). If the real user logs out, they cannot get back into account (b), their password is checked against doc (a) and can lock it, and the 'main admin' account the app shows is not their data. There is no unique index on users(role,email).", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "DELETE /api/businesses/{bid}", "issue": "The business's active orders are left orphaned. Seen in testing: an open 'nuevo' order (open=true) stayed in /courier/open-orders after its business was deleted. Linked admins can also delete businesses, which deletes that business's login account."},
+      {"endpoint": "DELETE /api/admins/{aid}", "issue": "Deleting an INDEPENDENT admin leaves its businesses, couriers and orders orphaned. Its couriers and business accounts can still log in."},
+      {"endpoint": "PATCH /api/orders/{id}/status (cancelado)", "issue": "Owner cancel does not reset open=false; the business cancel endpoint does. This is harmless because the open-orders query filters by status."},
+      {"endpoint": "PUT /api/settings", "issue": "It now only accepts [{name, phone}]. An old client sending plain strings gets 422. The DB side handles old strings through norm_phones."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Gestión > Repartidores (LINKED admin)", "issue": "delete-courier-{id} buttons are still shown to linked admins. The backend returns 403, and the delCourier mutation has no onError, so the delete fails silently. Hide the button when user.linked, as is already done for add-courier.", "testID": "delete-courier-{id}", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Owner new order with a km-priced business", "issue": "Picking a street-only suggestion (for example 'Plaza Castilla, Madrid (28046)' from Cartociudad, which has lat/lng null) sets no dest. No quote-km is shown and nothing tells the user why. The fee stays at the business fixed fee. The quote only appears for suggestions with a house number. Consider geocoding or a hint.", "affected_testIDs": ["quote-km", "customer-address-suggestion-0"]}
+    ],
+    "design_issues": [
+      {"screen": "Owner Órdenes (range mode)", "issues": ["The RangePicker wrapper View in app/(owner)/orders.tsx:63 has no paddingHorizontal. The Desde box touches the left edge (x=0) and the Hasta box runs past the right edge at 390px. Add paddingHorizontal: space.lg.", "The summary says '1 pedidos' (no singular form).", "The filter-chip counts come from /dashboard and are not limited to the chosen range."]},
+      {"screen": "Nueva orden", "issues": ["payment-auto-hint ('Sin importe a cobrar...') renders at x=0. Style s.muted (new.tsx:264) has no paddingHorizontal."]},
+      {"screen": "Business detail", "issue_note": "", "issues": ["business-fee-row briefly shows 'Precio fijo del envío: 0,00 €' before the business data loads (a flash of the wrong value)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter16_admins_km_incidents.py", "/app/backend/tests/seed_ui_iter16.py", "/app/test_reports/pytest/pytest_iter16.xml", "/app/test_reports/pytest/pytest_iter16_full.xml"],
+  "action_items": [
+    "CRITICAL: resolve the duplicate owner pedidosconustedes@gmail.com. Decide which doc is the main admin; most likely it is the real user's 6ae34bf6c4b986a63025ed26 with Verde and Flores menchu. Merge the data by moving owner_id of businesses, products, orders, couriers, payouts and counters, or rename or delete the seeded doc 6ae347236362b29c3e2fb5c8. Make the startup migration idempotent so it never creates or renames into an email that already exists. Add a unique index on users(role, email) for owner/business.",
+    "Hide delete-courier for linked admins and add onError toast to delCourier (manage.tsx)",
+    "Add paddingHorizontal to the range wrapper in (owner)/orders.tsx and to payment-auto-hint in order/new.tsx",
+    "When a business is deleted, cancel or close its active orders (at least open ones); when an independent admin is deleted, cascade or block it",
+    "Optional: show a hint or geocode when a street-only suggestion is picked for a km-priced business",
+    "Delete leftover test admin sec_test@x.com (linked admin under the seeded main account, created by the main agent)",
+    "Update the stale regression tests: public register now returns 403; settings take named phones; reports by_courier total is fees only; photo endpoints need a photo-token; the tiny test JPEG is rejected"
+  ],
+  "critical_code_review_comments": [
+    "server.py is about 2000 lines (over 700); split it into routers (auth, admins, businesses, orders, courier, biz)",
+    "The owner_user/account_admin/main_admin dependency chain is correct: linked admins are remapped to parent_id with linked kept True, so account_admin returns 403",
+    "biz_order/biz_me correctly exclude delivery_fee, total and the km pricing fields",
+    "No deprecated Expo packages (expo-av, expo-barcode-scanner, expo-background-fetch) were found"
+  ],
+  "updated_files": ["/app/backend/tests/*.py (replaced admin@delivery.com with pedidosconustedes@gmail.com in 27 files)", "/app/backend/tests/test_iter16_admins_km_incidents.py (new)", "/app/backend/tests/seed_ui_iter16.py (new)"],
+  "success_rate": {"backend": "100% of the new iteration 16 suite (10/10); full regression 95% (190/200, all 10 failures are stale assertions); 1 critical data issue (duplicate main admin email)", "frontend": "~92% (all requested flows work; 1 UI bug, plus layout issues)"},
+  "seed_data_creation": "Temporary data, all cleaned up: TEST_ admins, the TEST_KmUI business with its account, TEST_ orders and couriers. Emergency phones were restored to the original [600111222, 112]. Seeded businesses are untouched and use fixed pricing. No accounts are locked.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Setup: export EXPO_PUBLIC_BACKEND_URL from frontend/.env and run pytest -n 0. The full suite takes about 7 min. UI seed: python tests/seed_ui_iter16.py; cleanup: python tests/seed_ui_iter16.py cleanup. UI tips: inside sheets, dispatch_event('click') is more reliable than click. Chip selected background is rgb(95,113,97). Cartociudad street-only suggestions have no coordinates, so use an address with a house number (for example 'Calle Alcala 50 Madrid') to trigger quote-km. Check which owner doc login returns, because pedidosconustedes@gmail.com is duplicated.",
+  "rca_of_issue": "Duplicate admin: the real user registered pedidosconustedes@gmail.com as owner 6ae34bf6 on 2026-10-29. In this batch the seeded admin@delivery.com doc (6ae347) was migrated to the same email. seed() looks up {role:'owner', email}, but nothing prevents a second doc with that email, and there is no unique index. Login find_one returns the seeded doc, so the real user's account and data are reachable only through an old token. Mitigation: merge the two accounts or remove one, then add a unique index."
+}

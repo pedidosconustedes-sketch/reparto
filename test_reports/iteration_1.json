@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 1 (first run). Backend: 13/13 core API tests pass (auth owner/courier/register/me, role enforcement 401/403, businesses+products CRUD/toggle, couriers CRUD+dup/validation, orders create w/ server-computed total, filters, status, assign/unassign, dashboard, courier orders/status restriction, location/online). 3 business-rule edge tests FAIL (no status-transition guards, unavailable products orderable via API). Frontend (390x844 web preview): owner login (incl. wrong-password error), dashboard metrics/businesses/active orders, 4 tabs, Órdenes filter chips, order detail -> advance status -> assign courier sheet -> cancel, Nueva orden (business select, qty-plus, customer fields, total $14.60 correct, validation error, navigates to detail), Gestión add/delete business, business detail add/toggle/delete product, Repartidores add (PIN validation disables save)/delete courier, Mapa web fallback list, courier login -> assigned deliveries -> start/deliver -> delivered history, online switch -> location sheet -> 'Conectarme sin ubicación', session persistence on reload, logout — all WORKING. One intermittent auth race found (logout during initial hydration). Deprecated import detected: expo-router/unstable-native-tabs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/orders/{id}/status", "issue": "No transition validation: owner can move 'entregado' -> 'nuevo' (or revive 'cancelado'); history gets inconsistent. Verified: returns 200."},
+      {"endpoint": "PATCH /api/courier/orders/{id}/status", "issue": "Courier can set 'en_camino'/'entregado' on a CANCELLED order still assigned to them (get_order filters only courier_id). Verified: returns 200. Should require current status in nuevo/preparacion/en_camino and not cancelled."},
+      {"endpoint": "POST /api/orders", "issue": "Products with available=false are accepted (only filtered in UI). server.py:447 should add 'available': True to query or reject with 400."},
+      {"endpoint": "PATCH /api/orders/{id}/assign", "issue": "Allows assigning/unassigning couriers on delivered/cancelled orders (UI hides it, API does not)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Auth hydration / courier logout", "issue": "Race: on app start AuthProvider renders screens while loading=true with user=null (courier.tsx:116 & (owner)/_layout.tsx only redirect when !loading). If user taps logout before /auth/me resolves, signOut clears token+user, then the pending /auth/me resolves and setUser() re-sets the user -> screen stays on 'Hola, Carlos' with 'Error de conexión' (courier/orders now sent w/o token). Reproduced once after page reload. Fix: render <Loading/> while loading, and ignore /auth/me result if signOut happened (e.g. cancelled flag/ref).", "testID": "courier-logout-button", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Nueva orden", "issues": ["qty-plus/qty-minus buttons are 36x36 (< 44 min touch target)", "courier chips order-courier-* are 36px tall"]},
+      {"screen": "Órdenes", "issues": ["filter-chip-* are 36px tall (< 44)"]},
+      {"screen": "Order detail", "issues": ["change-courier-button text link is 58x18 (+hitSlop 8 => ~34px tall)", "call-customer-button pill 36px tall", "Toast overlays the header (back button/title hidden for ~2s) — consider offsetting toast below header/safe area"]},
+      {"screen": "Business detail", "issues": ["product-available Switch thumb renders default web teal instead of brand sage color (thumbColor not set)", "delete-product-* deletes immediately with no confirmation (business/courier deletes have confirm sheets)"]}
+    ],
+    "react_native_issues": [
+      {"component": "expo-router/unstable-native-tabs", "issue": "Deprecated import; Metro logs WARN '`expo-router/unstable-native-tabs` is deprecated. Use `expo-router/native-tabs` instead.' Reference: /app/frontend/app/(owner)/_layout.tsx:3"}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_delivery_api.py", "/app/backend/tests/test_delivery_edge_cases.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Migrate import in app/(owner)/_layout.tsx:3 from 'expo-router/unstable-native-tabs' to 'expo-router/native-tabs'",
+    "Add status-transition guards in set_status/update_status/courier_status (reject changes on entregado/cancelado; courier only from nuevo/preparacion->en_camino and en_camino->entregado)",
+    "Reject unavailable products in POST /api/orders (server.py:447)",
+    "Block /orders/{id}/assign for closed orders",
+    "Fix auth hydration race: show Loading while auth loading in courier.tsx and (owner)/_layout.tsx; guard setUser after signOut in src/auth.tsx",
+    "Increase touch targets to >=44px: qty-plus/minus, filter chips, order-courier chips, change-courier-button, call-customer pill",
+    "Optional: confirm before deleting product; set Switch thumbColor; offset toast below header"
+  ],
+  "critical_code_review_comments": [
+    "courier.tsx: update.isPending is shared across all order cards, so every card's action button shows loading during one mutation",
+    "courier.tsx logout: setOnlineApi(false) is fire-and-forget concurrent with signOut token removal; on native SecureStore the offline POST may go out without token, leaving courier 'online' on the owner map",
+    "Couriers who close the app stay online=true indefinitely (no staleness based on location_at)",
+    "Dashboard 'today' uses UTC midnight, not the business local timezone — revenue/orders_today will be off for UTC-3 (Argentina-style addresses)",
+    "list_businesses/list_couriers do N+1 count_documents queries (fine for small data)"
+  ],
+  "updated_files": ["/app/backend/tests/test_delivery_api.py", "/app/backend/tests/test_delivery_edge_cases.py"],
+  "success_rate": {"backend": "100% core (13/13); 0/3 business-rule edge tests", "frontend": "~95% (all requested flows work; 1 intermittent auth race)"},
+  "seed_data_creation": "No new seed. Test side-effects: seeded order #1002 marked entregado by courier UI test; a few TEST_ orders (TEST_Cust delivered, TEST_UI Cliente/TEST_Edge cancelled) created; TEST_ businesses/couriers were deleted.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Base URL is EXPO_PUBLIC_BACKEND_URL in frontend/.env (not EXPO_BACKEND_URL). Run pytest with '-n 0' or from /app/backend (pytest.ini adds xdist). Home and Órdenes tabs stay mounted on web, so '[data-testid^=order-card-]' counts include hidden home cards — use ':visible'. fab-new-order is only on Órdenes tab; home uses header-new-order-button. Tab testIDs: tab-index/tab-orders/tab-map/tab-manage; manage sub-tabs manage-tab-biz/manage-tab-couriers; add-business-button/add-courier-button.",
+  "rca_of_issue": "Logout race: AuthProvider sets loading=true and starts /auth/me; courier.tsx renders full UI (incl. logout) while loading because redirect only checks !loading. Tapping logout -> signOut removes token & setUser(null); then in-flight /auth/me resolves -> setUser(courier) restores the session in memory without a token -> courier/orders 401 (no unauthorized handler because token absent) -> 'Error de conexión'. Repro: login as courier, reload /courier, tap logout immediately. Mitigation: gate screens on loading and cancel stale hydration result."
+}

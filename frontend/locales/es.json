@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Reparto",
+    "NSLocationWhenInUseUsageDescription": "Muestra tu ubicación al comercio durante entregas",
+    "NSCameraUsageDescription": "Fotografía la entrega como comprobante para el comercio"
+  }
+}

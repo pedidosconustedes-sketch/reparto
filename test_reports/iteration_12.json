@@ -1,0 +1,37 @@
+{
+  "summary": "Retest of the iteration 11 fixes. Backend: the new tests/test_iter12_retest.py passed 12/12 and the iteration 11 regression suite (test_iter11_places_fees_bizphoto.py) passed 19/19. Frontend (Playwright, 390x844) passed every requested flow. Ranking is fixed: 'Gran Via 28 Madrid' gives 'Gran Vía 28, 28013 Madrid' first, with or without near. 'Calle Mayor 5 Madrid' gives 'Calle Mayor 5, 28013 Madrid' first. 'Calle de Fuencarral 45 Madrid' gives 'Calle de Fuencarral 45, 28004 Madrid' first. 'Calle de Alcala 50 Madrid' returns only Calle de Alcalá segments in Madrid and never Alcalá de Henares, but the first segment is far from number 50 (see minor issue). Courier /courier/orders active and /courier/open-orders now include business_photo: null when the business has no photo and the stored path after an upload; it is not saved on the order. The courier home showed zero 404 photo requests and courier-home-map is visible (358x380). edit-fee-button is exactly 44px tall and opens the fee sheet. The duration label reads 'menos de 1 min' on the order detail and on card-duration-1349. AddressInput: a mocked suggestion without coordinates puts its text in the field with no verified badge, and a real suggestion shows customer-address-verified. Business new-order screen: there is no delivery-fee-input, no envío/Costo text, the footer shows 'Monto del pedido 12,50 €', the address suggestions work, and the biz-order detail shows no fee. The backend ignores the fee sent by the business client (99) and uses default_fee 3.5. Regression: owner, courier 1 and courier 2 logins all work; the owner fee input is pre-filled from default_fee (3,5) and the total is 13,50 €. No deprecated Expo packages were seen in the files reviewed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/places/autocomplete?q=Calle de Alcala 50 Madrid", "issue": "OSM has no number 50, so the results fall back to street segments. Without near, the first result is 'Calle de Alcalá, 29043 Madrid' (40.447,-3.6115). That is about 7 km east of the real Alcalá 50 (28014, near Cibeles), which comes second. 29043 is a Málaga postcode, an OSM data error, so the label is misleading. With near=40.4165,-3.7058 (Calle Mayor 5, the test business's coordinates), the 4 results are all far-east segments (28022/28027/28028/28037) and the central 28014 segment is missing. Picking any of them saves dest coords several km off and still shows the 'Dirección exacta en el mapa' badge."},
+      {"endpoint": "osm_suggest / _nominatim_rows (server.py:110-145)", "issue": "The autocomplete fallback calls Nominatim directly, outside geo_lock and the 1 req/s throttle. Each debounced keystroke whose house number has no exact Photon match triggers a Nominatim request. Nominatim's usage policy forbids autocomplete-style use and allows at most 1 req/s, so this risks an IP block in production."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "status.ts deliveryMinutes", "issues": ["Math.round makes deliveries of 30-59 s show '1 min' instead of 'menos de 1 min'. Only deliveries under 30 s hit the new label. Consider Math.floor or comparing raw seconds."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter12_retest.py", "/app/backend/tests/seed_ui_iter12.py", "/app/test_reports/pytest/pytest_iter12.xml"],
+  "action_items": [
+    "Optional: when the typed house number has no exact OSM match, rank the street segments by distance to `near` (or to the city centre), and do not show the 'Dirección exacta en el mapa' badge for street-only results (for example, add an approximate flag to the suggestion).",
+    "Optional: put the Nominatim autocomplete fallback behind geo_lock and the 1 req/s throttle, and cache it, to respect the Nominatim usage policy.",
+    "Optional: use Math.floor (or raw seconds) in deliveryMinutes so deliveries of 30-59 s also read 'menos de 1 min'.",
+    "Housekeeping: 31 old TEST_ orders from earlier iterations are still on the seeded business 'Café Aroma' (28 named TEST_Cliente, plus TEST_UI_Libre, TEST_UI_Asignado, TEST_UI Cliente). They appear as open tasks on the courier home, for example #1289. They were not created in this iteration; clean them up if they are not wanted."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1714 lines; consider splitting it into routers (places/geo, courier, biz, orders).",
+    "The /biz/orders response includes a business_photo key (null) because the Order model has the field. It is harmless but not needed outside the courier endpoints.",
+    "Test files read EXPO_PUBLIC_BACKEND_URL from the frontend .env (the key is EXPO_PUBLIC_BACKEND_URL, not EXPO_BACKEND_URL), so export it before running pytest."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter12_retest.py", "/app/backend/tests/seed_ui_iter12.py"],
+  "success_rate": {"backend": "100% (12/12 new + 19/19 iter11 regression)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "TEST_Biz12 and TEST_UIBiz12, their test_biz12/test_uibiz12 accounts and orders 1347-1350 plus the pytest orders were created and then fully removed. No accounts were locked.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest with: export $(grep EXPO_PUBLIC_BACKEND_URL /app/frontend/.env) && pytest -n 0. UI seed: python tests/seed_ui_iter12.py create|delete. Its business is TEST_UIBiz12 with login test_uibiz12@delivery.com / UiBizPass12, and it creates active, open and delivered (<1 min) orders for courier 1100000001. The login tabs are login-tab-owner, login-tab-business and login-tab-courier.",
+  "rca_of_issue": ""
+}

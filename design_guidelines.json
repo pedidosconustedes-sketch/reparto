@@ -1,0 +1,156 @@
+{
+  "app_name": "Delivery Manager UI",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "Un diseño utilitario, claro y limpio ('claro y limpio') que prioriza la legibilidad y la jerarquía de la información para la operación rápida de entregas.",
+  "color": {
+    "surface": "#FAFAFA",
+    "onSurface": "#111111",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#1A1A1A",
+    "surfaceTertiary": "#F0F0F0",
+    "onSurfaceTertiary": "#333333",
+    "surfaceInverse": "#222222",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#5F7161",
+    "brandPrimary": "#5F7161",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#D8E2DC",
+    "onBrandSecondary": "#404D41",
+    "brandTertiary": "#E9ECE9",
+    "onBrandTertiary": "#2E362F",
+    "success": "#6A8D73",
+    "onSuccess": "#FFFFFF",
+    "warning": "#D4A373",
+    "onWarning": "#FFFFFF",
+    "error": "#B85C5C",
+    "onError": "#FFFFFF",
+    "border": "#E5E5E5",
+    "borderStrong": "#CCCCCC",
+    "divider": "#EEEEEE",
+    "muted": "#777777"
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical rhythm. Group related information with `sm` spacing, and use `lg` or `xl` to separate sections. Keep safe-area margins.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use on bottom tab bar to allow scrolling content to bleed behind",
+      "Use on sticky headers or sticky filter rows (like status chips)",
+      "Use on FAB (floating action button)"
+    ],
+    "dont's": [
+      "Do not use on regular cards or list items",
+      "Do not use in dense data tables or lists"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Dashboard Propietario (Inicio)",
+      "purpose": "Provide a high-level summary of today's operation (revenue, active orders, couriers online) and quick actions.",
+      "layout": "Header with 'Hola, [Name]'. Top section: 2-column grid for key metrics (Ingresos, Repartidores). Mid section: horizontal scroll of 'Comercios'. Bottom section: list of recent active orders. Glass tab bar at bottom.",
+      "states": {
+        "loading": "Centered spinner",
+        "empty": "No stats for today yet. Simple message + 'Crear Orden' CTA.",
+        "error": "Error loading dashboard + Retry"
+      }
+    },
+    {
+      "name": "Gestión de Órdenes",
+      "purpose": "Track and manage all orders filtered by their current status.",
+      "layout": "Sticky glass header with scrollable horizontal pill chips for status (Nuevo, Preparación, Camino, Entregado). Below, a vertical FlatList of order cards. Each card has a colored dot/badge for status, customer name, and time elapsed. Primary CTA pinned at bottom right (FAB) to create order.",
+      "states": {
+        "loading": "Skeleton list",
+        "empty": "Illustration of empty clipboard. Text: 'No hay órdenes en este estado.'",
+        "error": "Error loading orders + Retry"
+      }
+    },
+    {
+      "name": "Detalle de Orden",
+      "purpose": "Show full order context, status timeline, and allow assigning a courier.",
+      "layout": "Header with Order ID. Section 1: Vertical status timeline (connecting dots). Section 2: Products list. Section 3: Customer info. Section 4: Assigned Courier with live map snippet. Sticky primary CTA at the bottom: 'Actualizar Estado' or 'Asignar Repartidor'.",
+      "states": {
+        "loading": "Skeleton detail view",
+        "empty": "N/A - Detail always has data if reached",
+        "error": "Error loading order + Retry"
+      }
+    },
+    {
+      "name": "Dashboard Repartidor",
+      "purpose": "Couriers' main view to see their current assigned delivery and easily update status while on the go.",
+      "layout": "Optimized for outdoor/one-handed use. Very large typography. Top: Large 'Current Delivery' card showing destination, customer, and a prominent 'Abrir Mapa' button. Bottom: sticky large full-width CTA 'Marcar como Entregado' or 'En Camino'.",
+      "states": {
+        "loading": "Centered spinner",
+        "empty": "Illustration of waiting courier. Text: 'No tienes entregas asignadas. Estás en línea.'",
+        "error": "Connection error alert"
+      }
+    }
+  ],
+  "images": {
+    "empty_state_clipboard": {
+      "url": "https://images.unsplash.com/photo-1651760680066-db9d32bd0357?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwxfHxlbXB0eSUyMGNsaXBib2FyZCUyMGRlc2slMjBjbGVhbnxlbnwwfHx8fDE3OTMyNzk2MjF8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Empty clipboard representing no orders"
+    },
+    "business_cover_cafe": {
+      "url": "https://images.unsplash.com/photo-1760863264234-a15ab884f73e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwyfHxjbGVhbiUyMG1vZGVybiUyMGNhZmUlMjBzdG9yZWZyb250fGVufDB8fHx8MTc5MzI3OTYyMXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Modern cafe storefront"
+    },
+    "courier_hero": {
+      "url": "https://images.unsplash.com/photo-1781603961241-bdca150ae684?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxkZWxpdmVyeSUyMHBhY2thZ2UlMjBjb3VyaWVyJTIwbW9kZXJuJTIwcGhvdG98ZW58MHx8fHwxNzkzMjc5NjIxfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Courier cycling to deliver package"
+    }
+  },
+  "haptics": {
+    "tab_press": "light",
+    "status_chip_select": "light",
+    "order_status_update": "success",
+    "primary_cta": "medium"
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the 'iOS-Native Clean' personality with the custom Sage Green (brand) earthy palette to avoid 'generic tech app' feel while remaining clean and trustworthy.",
+    "Implement distinct role-based views. For the Owner: a denser, data-rich dashboard. For the Courier: highly legible, high-contrast, large touch targets designed for outdoor visibility and one-handed operation.",
+    "Ensure 'Nueva Orden' (Create Order) has a sticky CTA at the bottom using KeyboardAvoidingView, making it easy to save.",
+    "Implement glassmorphism on the bottom tab bar and sticky order status filters, so the order list scrolls elegantly behind them.",
+    "When displaying status updates (Nuevo -> En preparación -> En camino -> Entregado), use the warning (ochre) and success (green) colors properly mapped to convey progress.",
+    "Ensure text rendered over imagery (like business covers) has a linear-gradient scrim (top-to-bottom, ending at >70% surfaceInverse opacity) to guarantee WCAG contrast."
+  ]
+}

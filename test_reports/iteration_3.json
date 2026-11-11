@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 3: tested payment methods, owner reports (period/calendar/by_courier), geocoded pickup/dest coords, courier pickup/deliver flow with photo+note, photo download auth, courier totals. Backend 49/49 pytest pass (run serially). Frontend: all requested owner + courier flows work on 375x667 web preview, including real photo upload via web file chooser and owner 'Comprobante de entrega' showing photo + note. Only minor UX/code-review findings. No deprecated Expo packages detected (no expo-av / expo-barcode-scanner / expo-background-fetch).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/orders/{id}/photo?token=", "issue": "Full long-lived JWT is put in the image URL query string (src/api.ts:11). It can leak through proxy/access logs, browser history and caches. Better: a short-lived signed photo token or fetching with an Authorization header."},
+      {"endpoint": "PATCH /api/courier/orders/{id}/status", "issue": "Couriers can close a delivery without a photo. The backend does not require delivery_photo, and the UI labels the photo 'Foto de la entrega (opcional)'. The user asked couriers to take a photo BEFORE delivering. Confirm with the user whether the photo should be required."},
+      {"endpoint": "POST /api/orders", "issue": "If the business has no lat/lng when the order is created, pickup_lat stays null for good. create_order sets geo_tried=True, so ensure_coords later returns early and never geocodes the business."},
+      {"endpoint": "PATCH /api/orders/{id}/payment", "issue": "The payment method can still be changed on delivered or cancelled orders: there is no closed-order check, and the detail-payment chips stay active after delivery. This may be intentional (to correct mistakes) but changes past reports."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "reports.tsx period navigation", "issue": "After using report-prev/report-next in 'Mes', shiftPeriod returns the 1st of the month. Switching to 'Día' then shows 'Jueves 1 de octubre' at 0,00 € instead of today (Oct 29). Reference: src/period.ts:34-37 (shiftPeriod for 'mes' returns addMonths(startOfMonth)). Keep the day of month, or reset to today when returning to the current period.", "testID": "report-period-dia", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "courier (web TripMap list)", "issues": ["trip-point-pickup shows only the business name (e.g. 'Pizzería Napoli'), not the pickup address. The owner detail shows 'Café Aroma · Calle de Fuencarral 45'. The stop rows below do show the address, so this is minor."]},
+      {"screen": "courier delivered list", "issues": ["Old seed order #1002 still shows an Argentine address ('Calle Lavalle 845'). The demo data move to Madrid did not update delivered seed orders."]}
+    ],
+    "react_native_issues": [
+      {"component": "react-native-maps Android", "issue": "app.json has no android.config.googleMaps.apiKey. The map works in Expo Go, but a standalone/EAS Android build will show a blank map without a Google Maps API key. Reference: /app/frontend/app.json"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_reports_payment_photo.py",
+    "/app/backend/tests/test_geo_courier_report.py",
+    "/app/test_reports/pytest/pytest_iter3.xml"
+  ],
+  "action_items": [
+    "LOW: Decide whether the delivery photo should be required before 'Confirmar entrega' (user wording: 'take a photo and add a note BEFORE delivering'). If so, enforce it in CloseDeliverySheet and in the backend courier_status for 'entregado'.",
+    "LOW: Fix shiftPeriod('mes') so that switching to 'Día' after navigating does not jump to the 1st of the month.",
+    "LOW: Avoid the raw JWT in the photo URL query (use a short-lived signed token).",
+    "LOW: In create_order, do not set geo_tried=True when the business has no coordinates (or geocode the business at creation).",
+    "LOW: Add android.config.googleMaps.apiKey for production Android builds of react-native-maps.",
+    "LOW: Optionally show the pickup address in TripMap.web trip-point-pickup on the courier screen."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 936 lines (>700). Consider splitting into routers (auth, orders, courier, reports, storage/geocode).",
+    "reports(): the by_courier loop and the aggregation pipeline both go over the same docs. Computing everything from the already-fetched docs would remove the second DB round-trip.",
+    "Backend tests share one owner account. Under pytest-xdist (default -n) test_report_totals_delta and test_order_flow fail because other workers create orders in the same window. Run with -n0 or isolate the data per worker.",
+    "Changes to files under backend/tests trigger a uvicorn reload (WatchFiles), which can cause flaky failures while tests are being edited."
+  ],
+  "updated_files": ["/app/backend/tests/test_geo_courier_report.py"],
+  "success_rate": {"backend": "100% (49/49, serial run)", "frontend": "100% of requested flows passed; 1 low-priority UX bug"},
+  "seed_data_creation": "Created TEST_UI orders #1154 and #1155 (owner UI + courier deliver, one with a photo). Deleted after testing. The uploaded test PNG stays in object storage.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run backend tests with `pytest -n0` (xdist parallelism causes data-race failures in the delta-based report tests). Courier login uses tab testID login-tab-courier. Close-delivery sheet slides in: wait about 1s before clicking confirm-delivery-button. On web, take-photo-button opens a file chooser (page.expect_file_chooser works). Order numbers are sequential (last 1155).",
+  "rca_of_issue": ""
+}

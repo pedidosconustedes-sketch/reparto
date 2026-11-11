@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 4 (photos, payouts, fee-only totals, geocoding, courier alerts). Backend: 12/12 new tests pass (test_photo_upload_iter5.py 6/6, test_fees_payouts_geo.py 6/6). The full suite gave 56/61. The 5 failures come from outdated older tests that still expect totals based on order amount, or that upload a PNG under 200 bytes. These are not app regressions. Frontend (390x844): every requested flow passed. Owner order detail shows delivery-proof-card with a working delivery-photo image (naturalWidth 120) and delivery-note-text. Order cards show card-photo-N and card-note-N. route-card shows trip-point-dest. Gestión > Repartidores shows 'Por pagar: 3,50 € (1 envíos)'; the Pagar button (44px high) opens pay-courier-sheet; confirm sets the amount to 0,00 €, hides the button and shows the toast 'Pago registrado'. Labels 'Envíos de hoy' / 'Total de envíos' are correct, and the courier today card shows pending-payout. Courier alert: 'Nueva tarea asignada: #1264' appeared 4.6s after the API assign; 'Tarea cancelada o retirada: #1264' appeared 1.2s after the API cancel. No deprecated packages found (expo-audio is used).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/payouts/{cid}", "issue": "Race condition: pending_for() computes the amount, then update_many marks ALL delivered unpaid orders as paid. An order delivered between those two calls is marked paid without being counted in the payout amount. Fix: collect the order _ids first, then update_many({_id: {$in: ids}}) and compute the amount from those docs."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Gestión > Repartidores / pay-courier-sheet", "issues": ["Plural grammar: '(1 envíos)', '1 tareas entregadas', '1 activas'. Use singular forms when count == 1."]},
+      {"screen": "Reportes", "issues": ["The summary card shows the same number twice: 'Total de envíos 144,50 €' and the sub-metric 'Envíos 144,50 €'. The sub-metric is redundant now that totals use fees only."]},
+      {"screen": "Owner Mapa tab", "issues": ["The Mapa tab only shows courier markers, no delivery-destination markers. The destination icon only appears in the order-detail route-card. Confirm this matches the user's request (2)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_photo_upload_iter5.py", "/app/backend/tests/test_fees_payouts_geo.py", "/app/backend/tests/seed_ui_iter5.py", "/app/test_reports/pytest/pytest_iter5_all.xml"],
+  "action_items": [
+    "Update the outdated regression tests to the new fee-only semantics: test_courier_history.py:83 and :169, test_geo_courier_report.py:116, test_reports_payment_photo.py:142. Also make the _png() fixture in test_reports_payment_photo.py produce at least 200 bytes (line 192 is now rejected with 'La foto llegó vacía').",
+    "Make the payout atomic with respect to the exact orders summed (see backend minor issue).",
+    "Add refetchInterval or refetchOnFocus to the ['payouts'] query in manage.tsx so 'Por pagar' updates while the owner is on the screen.",
+    "Fix the plural grammar in the courier rows and the pay sheet; remove the duplicate 'Envíos' sub-metric in Reportes."
+  ],
+  "critical_code_review_comments": [
+    "courier.tsx alert diffing is sound: there is no alert on the first load, and orders the courier delivers themselves are excluded through the delivered set. On web, sound depends on the browser's autoplay policy; vibration only works on native.",
+    "test_delivery_api.py:176 sets Carlos's location to Buenos Aires (-34.6,-58.38), so the courier TripMap zooms out to a world view. This is test-data pollution, but consider ignoring a stale courier location (old location_at) in map bounds.",
+    "GET /orders/{id}/photo authenticates with a JWT in the query string; the token can end up in logs. Acceptable for Image sources, but a short-lived signed URL would be better."
+  ],
+  "updated_files": ["/app/backend/tests/test_photo_upload_iter5.py (new)", "/app/backend/tests/seed_ui_iter5.py (new)"],
+  "success_rate": {"backend": "100% of new feature tests (12/12); 56/61 of the full suite (5 outdated assertions)", "frontend": "100%"},
+  "seed_data_creation": "Created TEST_ui_foto (#1263, delivered with photo and note) and TEST_alert (#1264, cancelled) under admin@delivery.com and deleted both afterwards. Paid Carlos's 3,50 € via the UI, so a payout record exists for Carlos (admin account). No real-user data was touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest with -n 0. With parallel xdist workers, fee-delta tests interfere with each other (test_reports_and_dashboard_use_fees failed only under xdist). seed_ui_iter5.py creates a delivered order with a photo for UI checks; afterwards, delete TEST_ orders scoped to the admin owner_id. The container clock is Oct 2026."
+}

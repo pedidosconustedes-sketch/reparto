@@ -1,0 +1,36 @@
+{
+  "summary": "Retest of 2 items from iteration 9. MEDIUM lockout race: FIXED and verified. The atomic $inc reservation before bcrypt holds: a 100-request burst gave {401:5, 429:95}, a 30-request burst with the correct PIN last gave {401:5, 429:25} with the correct PIN -> 429, and 20 parallel requests gave {401:5, 429:15}. One correct login resets the counter, 1 wrong then correct works, 4 wrong then correct works, the lock is not extended while locked, and an expired lock allows login. 20/20 backend tests pass (test_iter10_lockout.py + test_iter9_retest.py, -n 0). LOW courier header: PARTIALLY FIXED. At 375px it shows 'Carlos' and 'En línea · GPS' on one line with no cut-off. At 320px it is still cut off badly: the name shows as 'Ca…' and the status as 'En lí…', because adjustsFontSizeToFit has no effect on react-native-web (font stays 22px) and the text column is only about 53px wide. Regression: the app loads, and owner and courier UI logins work.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/login, /api/auth/courier/login", "issue": "By design, anyone can lock any account (including the owner admin@delivery.com) for 15 min by sending 5 wrong attempts (DoS). Optional: rate-limit per IP as well as per account."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Courier header (courier.tsx:242-249)", "issue": "At 320px the first name is cut to 'Ca…' and the status to 'En lí…'. adjustsFontSizeToFit/minimumFontScale do nothing on web (computed font-size stays 22px). The text column (flex:1) is only about 53px wide because the Switch, SOS pill (75px) and logout button use the rest of the row. 'En línea' stays on one line but is not readable.", "testID": "courier-online-label", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Courier header", "issues": ["On web the Switch hit area is 40x20 (below 44pt)"]}
+    ],
+    "react_native_issues": [
+      {"component": "adjustsFontSizeToFit", "issue": "Not supported on react-native-web, so the name does not shrink in the web preview. It works only on native iOS/Android. Reference: /app/frontend/app/courier.tsx:243"}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iter10_lockout.py", "/app/backend/tests/test_iter9_retest.py", "/app/test_reports/pytest/pytest_iter10.xml"],
+  "action_items": [
+    "Courier header at <=340px: make the SOS button icon-only (drop the 'SOS' text) or smaller, and/or shorten the status (e.g. 'En línea' plus a small GPS icon instead of ' · GPS'), so the text column has about 90px or more. Optionally pick a smaller font size from useWindowDimensions width, since adjustsFontSizeToFit does not work on web."
+  ],
+  "critical_code_review_comments": [
+    "check_login: the reservation logic is correct. A successful login sets failed_logins back to 0, which also cancels reservations still in flight from parallel wrong guesses. That is fine because the attacker already used at most 5 checks in that window.",
+    "check_login line 388: the conditional lock ($not $gt now) correctly avoids extending an existing lock."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter10_lockout.py"],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "75% (375px OK, 320px truncation remains; app load + owner/courier logins OK)"},
+  "seed_data_creation": "Only temporary TEST_Lock10/TEST_Race9/TEST_Biz9 couriers and businesses, all deleted. Verified: 0 TEST_ users, and 0 users with failed_logins>0 or locked_until set.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run lockout tests with -n 0. Tests need env from backend/.env + frontend/.env (EXPO_PUBLIC_BACKEND_URL). The courier header check needs the geolocation permission granted in Playwright for the ' · GPS' suffix to appear.",
+  "rca_of_issue": "320px truncation: adjustsFontSizeToFit is native-only. On web, numberOfLines={1} only adds an ellipsis. The fixed-width items on the right (Switch 40 + SOS 75 + logout 44 + gaps) leave about 53px for the text at 320px."
+}

@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 14 retest of iteration 13. All requested items PASS. Backend: test_iter13_cards_photo_maps.py 12 of 12 pass, including the 3 autocomplete cases that failed before. New test_iter14_suggest_retest.py 7 of 7 pass. Regression test_iter12_retest + test_courier_history 25 of 25 pass. Photon is still ECONNREFUSED from the container, and the Nominatim fallback now covers it. '28013' gives ['28013, Madrid'], with no duplicate postcode. '08001' gives ['08001, Barcelona']. 'Calle Mayor 28013' gives 'Calle Mayor, 28013 Madrid' first. 'Calle Mayor 5 28013' still puts the exact number and 28013 first. A cached repeat takes 0.15 s, and the Photon skip keeps calls under 2 s. Frontend at 375x667: on the owner's /order/new, customer-address-input with 'Calle Mayor 28013' shows 8 suggestions in 2.6 s, all 28013. The first is 'Calle Mayor, 28013 Madrid', and selecting it shows customer-address-verified. Postcode-only '28013' shows '28013, Madrid' in 1.2 s, and it is selectable. Courier Lucía has 1 own task and 1 open order, and open-all-tasks-map is visible. It opens /courier-map 'Mis tareas (1) · por aceptar (1)' with 4 markers. Delivered times: a seeded order with the 'entregado' event at 00:11 and updated_at at 00:28 shows 'Entregado a las 00:11' on both courier home (delivered-1382) and /courier-history. Regression: owner Inicio and Órdenes cards show Envío / Cobrar al cliente. Torre de control renders the Leaflet map with 8 markers and tiles. Courier home map renders. No deprecated Expo packages.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/places/autocomplete", "issue": "When Photon is down and no 'near' is given, Nominatim's limit=5 plus label dedupe leaves 'Calle Mayor 28013' and 'Calle Mayor Madrid' with only 1 suggestion, not 8. With the business coordinates (UI case) 8 were returned. Not a blocker."},
+      {"endpoint": "GET /api/places/autocomplete", "issue": "Postcode-only and street-only results (no house number typed) get exact=true (server.py:177 `not want or ...`). The UI then shows them as 'verified', but the pin is a postcode or street centroid. Consider exact=false when the result has no house number (_num is None)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "order/new", "issues": ["Picking '28013, Madrid' (postcode only) shows the green 'verified' badge, though the location is only approximate. Should show customer-address-approx."]},
+      {"screen": "courier-map / courier home map", "issues": ["Still open from iteration 13: open ('por aceptar') orders use the same Entregar/Recoger icons as own tasks, and the legend has no 'por aceptar' entry."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter13_cards_photo_maps.py",
+    "/app/backend/tests/test_iter14_suggest_retest.py",
+    "/app/backend/tests/seed_ui_iter14.py",
+    "/app/test_reports/pytest/iter14_iter13.xml",
+    "/app/test_reports/pytest/iter14.xml",
+    "/app/test_reports/pytest/iter14_regression.xml"
+  ],
+  "action_items": [
+    "LOW: set exact=false for suggestions without a house number (postcode or street only), so the UI shows 'approx' instead of 'verified'.",
+    "LOW: courier-history.tsx:40 still groups byDay with o.updated_at, and /courier/history (server.py:1473) and the /courier/orders 'delivered today' filter (server.py:1451) still filter on updated_at. Use the 'entregado' event time (or a stored delivered_at field) for consistency.",
+    "LOW: courier-history.tsx:44 does `collected += o.delivery_fee`, the same as fees. Check whether 'collected' should be total/amount (backend total_collected also equals fees).",
+    "LOW (carry-over): give open orders a distinct marker and legend entry on the courier maps."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1749 lines (>700). Split it into routers.",
+    "Delivery time is now taken from the history event in the UI. The backend still filters and sorts by updated_at, so an order edited after delivery (fee or payment) moves into a different period. Store a delivered_at field."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter14_suggest_retest.py (new)",
+    "/app/backend/tests/seed_ui_iter14.py (new)"
+  ],
+  "success_rate": {"backend": "100% (12/12 iter13, 7/7 iter14, 25/25 regression)", "frontend": "100% (address dropdown, postcode-only, map button, delivered times, regression)"},
+  "seed_data_creation": "seed_ui_iter14.py create made TEST_UIBiz14 and order #1382, delivered by Lucía, with the 'entregado' event set 17 min before updated_at. All of it was removed with 'delete'. No TEST_ businesses, orders or users remain, and no accounts are locked. Existing order #1289 (open, Café Aroma, customer 'Test') was pre-existing and was not touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Photon is still ECONNREFUSED from the container, so the Nominatim fallback carries autocomplete (1 req/s, cached). Run with: export $(grep EXPO_PUBLIC_BACKEND_URL /app/frontend/.env | xargs); pytest tests/<file> -n 0. Courier Lucía (1100000002) currently has 1 own task (#1004) and 1 open order (#1289). The Playwright browser timezone is UTC. Leaflet maps are in iframes: use frame_locator('[data-testid=control-tower-map] iframe').",
+  "rca_of_issue": "The iteration 13 HIGH issue is resolved. The fallback condition at server.py:162 is now `if not rows or (want and not exact)`. _photon_rows sets a 5-minute skip after a failure, and the label dedupe is at server.py:139-140."
+}

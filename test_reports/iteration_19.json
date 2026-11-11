@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 19: Tested GET /api/biz/quote (km and fixed pricing, auth, validation, quote == saved order fee), the /reports date range, the business /order/new live quote and the owner quote-km regression. Backend: 11/11 pytest passed. Frontend: all requested flows work at 375x667. Business picks an address -> biz-quote shows 'Envío: 4,72 € · 5.45 km', the footer shows 'Pedido 12,00 € · envío 4,72 €' and the created order saved delivery_fee 4.72. Editing the address resets the box to the hint. Reports 'Entre fechas' shows RangePicker and reloads numbers (Oct 147,00 + Nov 24,23 = range 171,23 ✓). Día/Semana/Quincena/Mes, prev and calendar still work, and the range is kept when switching back. Owner km quote still prefills the fee (4 -> 4,72) and shows quote-km. No deprecated expo packages.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Business new order without picking a suggestion", "issue": "If the business types an address but does not pick from the list, the order is still sent. The backend geocodes it and charges the km fee, which the business never saw before sending (the footer just says 'Monto del pedido'). Consider requiring a pick, or warning first.", "affected_testIDs": ["biz-quote", "create-order-submit"]}
+    ],
+    "design_issues": [
+      {"screen": "/order/new (business)", "issues": ["The biz-quote box is below the fold at 375x667 (y≈665), but the footer line 'envío X €' shows the fee, so this is acceptable.", "Km uses a dot decimal ('5.45 km') while money uses a comma ('4,72 €'). Spanish UI should use '5,45 km'. The same applies to owner quote-km.", "Footer big total (order-total) shows only the subtotal for businesses, while the backend order total = amount + fee. Confirm this is intended."]},
+      {"screen": "/reports", "issues": ["5 period chips overflow at 375px, so 'Entre fechas' is partly cut off on first render (horizontal scroll works)."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter19_biz_quote_reports_range.py", "/app/test_reports/pytest/pytest_iter19.xml"],
+  "action_items": [
+    "Optional: block or warn on business order submit when the address was not picked from the suggestions (no quote shown).",
+    "Optional: format km with a comma decimal (toFixed(2).replace('.', ','))."
+  ],
+  "critical_code_review_comments": [
+    "quote_for and build_order both call route_km separately (quote, then again at POST). Results matched in tests, but Google Routes alternatives could in theory differ between calls. Passing the quoted fee through, or caching per (lat,lng) for a short TTL, would guarantee quote == charged."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter19_biz_quote_reports_range.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Used seed_ui_iter18.py seed/cleanup (TEST_UI18 Km business + test_ui18_biz@example.com). Pytest creates and deletes TEST_IT19 businesses. All cleaned up (0 leftover TEST biz/users).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "admin@delivery.com/Admin12345 only. Seed helper: python backend/tests/seed_ui_iter18.py seed|cleanup. Business login: login-tab-business -> biz-new-order-button. Address: customer-address-input / customer-address-suggestion-0. Reports: open-reports-button, report-period-rango, report-range-from/to(-label), calendar-prev-month, calendar-day-N. Server clock 2026-11-02."
+}

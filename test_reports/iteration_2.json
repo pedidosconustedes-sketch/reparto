@@ -1,0 +1,41 @@
+{
+  "summary": "Tested the courier history feature (backend + UI), amount-based order creation and € formatting. Backend: 15/15 new tests in test_courier_history.py pass. Correct results: shape, totals = sum of orders, [start,end) bounds, couriers' data kept separate, Z/offset ISO input, 400 for bad dates, 422 for missing params, 403 for owner, and an amount order created then delivered appears in today's history. Old suite: 2 failures. test_order_validation is out of date because orders with no items are now allowed. test_order_flow failed only in a parallel (xdist) run and passed when run alone, so it is flaky. Frontend (375x667): courier login, 'Hoy llevas' card (30,50 €), history navigation, chips Día/Semana/Quincena/Mes, prev/next (next disabled for current period), calendar (future days and next month disabled, prev month, pick day), 'Total por día' rows, tapping a day row switches to Día, empty state and back button all work. Every UI total matched the API: today 30,50 €/1, week 26 Oct–1 Nov 103,98 €/4, previous week 207,17 €/9, 2ª quincena 382,53 €/17, 1ª quincena 254,80 €/10, Oct 637,33 €/27, Sep 214,10 €/10, Oct 20 55,68 €/3, Sep 25 empty. Week runs Mon–Sun and quincena splits at 1–15 / 16–end. Owner: dashboard metric-revenue 94,90 €, order cards in €, new order 12,50 + 2 = 14,50 € shown in the form and the detail; no '$' anywhere. No deprecated Expo packages found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/orders", "issue": "An order with no items and amount 0 (or amount omitted) is accepted with 200, so an order can have total = delivery_fee only. The frontend does not check this either (order/new.tsx submit only checks name and address). Suggest requiring amount > 0 when items is empty."},
+      {"endpoint": "POST /api/orders", "issue": "The order number is max(number)+1, which is not atomic. Two creates at the same time can get duplicate numbers. Use an atomic counter (find_one_and_update with $inc)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "courier / courier-history", "issues": ["No singular form: '1 entregas' should be '1 entrega' (today card, Total por día rows)", "The period label is capitalised on every word ('Jueves 29 De Octubre 2026'). textTransform: capitalize also capitalises 'De'. Capitalise only the first letter.", "Chip has no accessibilityState={{selected}} (aria-selected is null), so screen readers cannot tell which period is selected"]},
+      {"screen": "order/new", "issues": ["The amount placeholder '0.00' uses a dot, but the app shows amounts in the '12,50 €' format", "The empty state subtitle still says 'agrega un comercio con productos', but orders no longer use products"]},
+      {"screen": "global", "issues": ["money() has no thousands separator: 1234.5 shows as '1234,50 €' instead of '1.234,50 €'. Consider Intl.NumberFormat('es-ES', {style:'currency', currency:'EUR'}) or a manual separator."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_courier_history.py", "/app/test_reports/pytest/pytest_results_iter2.xml"],
+  "action_items": [
+    "Update the outdated test /app/backend/tests/test_delivery_api.py::test_order_validation (line 159). It expects 422 for items: [], but amount-based orders now return 200. Decide whether amount must be > 0 and align the backend (server.py:458) and the frontend (order/new.tsx:65).",
+    "Make order number generation atomic (server.py:456-457)",
+    "Fix the plural 'entregas' for count 1 in courier.tsx:175 and courier-history.tsx:118",
+    "Capitalise only the first letter of the period label (period.ts / courier-history.tsx dateText textTransform)",
+    "Optional: add accessibilityState selected to Chip; add a thousands separator in money()"
+  ],
+  "critical_code_review_comments": [
+    "courier.tsx:39 calculates the today range at render time. If the app stays open past midnight, the 'Hoy llevas' card keeps querying the previous day until it re-renders or remounts.",
+    "The /courier/history query compares ISO strings (updated_at). This works because every timestamp is a UTC isoformat with +00:00. Keep now_iso() consistent, or store BSON dates.",
+    "/courier/history caps results at to_list(2000) with no pagination. This is fine for now, but totals would be under-counted past 2000 orders. Use $group aggregation for the totals.",
+    "After using period-prev in Semana or Quincena and then switching to Día, the date becomes the last day of the previous period (shiftPeriod returns addDays(s,-1)). This is acceptable, but may surprise users."
+  ],
+  "updated_files": ["/app/backend/tests/test_courier_history.py (new)"],
+  "success_rate": {"backend": "93% (27/29 incl. old suite; 15/15 new history tests)", "frontend": "100%"},
+  "flaky_tests": ["test_delivery_api.py::TestOrders::test_order_flow - failed once under xdist (KeyError courier_name on assign response), passed when run alone with -n 0. Likely interference from the parallel edge-case tests."],
+  "seed_data_creation": "None. TEST_ orders and one 'x'/'y' order created by the old validation test were deleted from MongoDB. The 76 demo-historial orders are untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Container date is Oct 29 2026 (UTC). Courier 1100000001 expected totals: Oct 637,33 €/27; week 26 Oct–1 Nov 103,98 €/4; today 30,50 €/1. Run pytest with -n 0 to avoid xdist flakiness. The test_courier_history.py teardown deletes orders whose customer_name starts with TEST_."
+}

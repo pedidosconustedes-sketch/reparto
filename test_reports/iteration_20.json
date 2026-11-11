@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 20: tested the courier-incident banner on order cards and the live incident toast. Backend: 6/6 pytest passed. POST /courier/orders/{id}/incident returns {ok, incident}, the note is trimmed, bad type/note give 422 and an owner token is rejected. Incidents appear in /orders?active=true, /dashboard recent and /biz/orders. Code check confirms the notify links: owner /order/{id}, business /biz-order/{id}. Frontend at 375x667, all flows pass. Owner Inicio and Órdenes cards show incident-banner-{n} with the latest label, '(+N)', HH:mm, courier name and note. A card without incidents shows no banner. The business /biz cards show the same banner. A live incident shows the toast '⚠️ Incidencia #N · Carlos Gómez: label — note' in about 5-6s, for the owner both on the tabs and on the /order/{id} detail screen, and for the business on /biz. The fee/charge boxes still render and tapping a card opens /order/{id} or /biz-order/{id}. No console errors. No deprecated expo packages.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "notify()/send_push", "issue": "In the preview env the push service returns 401, so the backend logs 'EMERGENT_PUSH_KEY missing or invalid'. It does not block requests, but real push notifications for incidents cannot be checked here."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Owner live incident -> card banner", "issue": "The toast comes from the layout watcher (10s), but the Órdenes and Inicio lists use other queries that refetch every 15s. So for up to ~15s after the toast, the card does not show the new banner yet. Seen: banner-1552 missing 1.5s after the toast, present on reload. Fix: when useIncidentAlert finds a new incident, call invalidateQueries for ['orders'] and ['dashboard'].", "affected_testIDs": ["incident-banner-{number}"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter20_incident_cards.py", "/app/backend/tests/seed_ui_iter20.py", "/app/test_reports/pytest/pytest_iter20.xml"],
+  "action_items": [
+    "Optional: in useIncidentAlert (owner), invalidate the ['orders'] and ['dashboard'] queries when a new incident is found, so the card banner updates together with the toast."
+  ],
+  "critical_code_review_comments": [
+    "useIncidentAlert only alerts for orders seen in a previous poll. An order that first appears with incidents already counts as new (prev 0) and will ring. That is fine.",
+    "The owner watcher lives in the (owner) layout. It keeps polling when /order/{id} is pushed on top (verified). It will not run if the app is cold-opened straight to a non-owner-group route via deep link.",
+    "/dashboard recent is limited to 8 active orders, so Inicio cards past 8 will not show banners. The Órdenes tab covers that."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter20_incident_cards.py", "/app/backend/tests/seed_ui_iter20.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "TEST_UI20 Inc business + account test_ui20_biz@example.com and orders #1551/#1552 for Carlos. All cleaned up with seed_ui_iter20.py cleanup, including the pytest TEST_IncBiz order.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use seed_ui_iter20.py seed|incident|cleanup. On owner tabs, hidden tab screens stay in the DOM, so ':visible' can match a card on the hidden Inicio screen. Pick elements inside the active screen.",
+  "rca_of_issue": ""
+}

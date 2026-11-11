@@ -1,0 +1,44 @@
+{
+  "summary": "I re-checked the fix for the main admin login (pedidosconustedes@gmail.com) in the DB, the API and the UI, and it works. Only one users doc has that email: 6ae34bf6c4b986a63025ed26, an owner with no parent_id and is_main=true. It is not locked (failed_logins 0, locked_until null). Its businesses are Verde and Flores menchu, with 51 orders and 5 couriers. The demo account 6ae347236362b29c3e2fb5c8 has its email admin@delivery.com back. The unique index uniq_role_email (partial: email is a string) exists. I made one deliberate wrong-password login for the real email: it returned 401 'Credenciales inválidas', and failed_logins on the REAL doc went to 1, which proves login now checks that account. I reset it to 0 straight away. A login with an email that doesn't exist also returns 401. With a JWT I minted for the real id, /auth/me returns is_main=true and /businesses lists Verde and Flores menchu (no demo businesses). A raw insert of a duplicate owner raises DuplicateKeyError and nothing is left behind. POST /api/admins with the real email (lower or upper case) returns 409. After a backend restart the real account's password_hash is unchanged and no owner is created; the full state diff before and after was empty. admin@delivery.com/Admin12345 logs in and sees Café Aroma, Pizzería Napoli and Farmacia Central. UI at 390x844: the Admin tab logs in as admin@delivery.com. For a linked secondary admin, Gestión shows only the Comercios and Repartidores tabs, with 0 delete-courier buttons and no 'Agregar repartidor'; the main admin sees 2 delete buttons (44x44). The Órdenes range picker has 16px side padding and the summary reads '1 pedido · ...' for one order. Backend: 15/15 iteration-17 tests passed (one test had a wrong expectation and was corrected), and the iteration-16 regression suite passed 10/10. No deprecated Expo packages found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "startup seed() / backend .env", "issue": "ADMIN_EMAIL is the real user's email but ADMIN_PASSWORD is still the public 'Admin12345'. On a fresh DB (for example a production deploy where the real account does not exist yet), seed() creates pedidosconustedes@gmail.com with password Admin12345 plus demo data, so anyone who knows the default could log in as the main admin. Also, admin@delivery.com is no longer seeded, so tests depend on the existing preview DB."},
+      {"endpoint": "users index uniq_role_email", "issue": "The index is per (role, email), but /auth/login looks up role IN [owner, business]. Cross-role uniqueness relies only on app-level checks (POST /admins, PUT /businesses/{bid}/account), so a race could still create an owner and a business with the same email and make login ambiguous. Low risk."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Órdenes range summary / courier rows / home business cards", "issue": "Plural agreement is missing: 'N entregados' and 'N cancelados' show plural for 1 (e.g. '1 entregados'), and '1 activas' appears in the Gestión courier meta and on the home business cards. Only 'pedido/pedidos' is pluralized.", "testID": "orders-range-summary", "priority": "low"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter17_main_admin_fix.py",
+    "/app/backend/tests/iter17_db_checks.py",
+    "/app/backend/tests/seed_ui_iter17.py",
+    "/app/test_reports/pytest/iter17.xml"
+  ],
+  "action_items": [
+    "Change ADMIN_PASSWORD in backend/.env to a strong value that is not public, or make seed() skip creating the main admin when ADMIN_EMAIL is the real user's email, so a fresh/production DB never gets pedidosconustedes@gmail.com/Admin12345.",
+    "Optional: fix plural agreement for 'entregados', 'cancelados' and 'activas' (use the existing plural() helper)."
+  ],
+  "critical_code_review_comments": [
+    "check_login now checks the right doc because there is a single owner with the real email, and the lockout counter was confirmed to apply to 6ae34bf6.",
+    "seed() returns early when the ADMIN_EMAIL owner already has businesses, so it does not touch the real account's data or password.",
+    "The linked secondary admin is hidden from courier delete in the UI (manage.tsx:216) and blocked by the API (DELETE /couriers returns 403 via account_admin)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter17_main_admin_fix.py (new)",
+    "/app/backend/tests/iter17_db_checks.py (new)",
+    "/app/backend/tests/seed_ui_iter17.py (new)"
+  ],
+  "success_rate": {"backend": "100% (15/15 iteration-17 tests plus 10/10 iteration-16 regression)", "frontend": "100% of requested UI checks"},
+  "seed_data_creation": "Temporary only, all deleted: linked admin test_linked_ui17@example.com, a TEST_UI17 order on the demo account (#1523, removed from Mongo), and a pytest linked admin test_linked_<tag>@example.com. Nothing was left: 0 test_ users, 0 TEST_UI17 orders. The real account's failed_logins is 0 and locked_until is null.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Do NOT rerun TestRealLogin::test_one_wrong_password_401_and_counter_increments casually: it makes one wrong login on the real user's account (it resets afterwards). Use -k 'not test_one_wrong_password'. The pytest.ini adds xdist (-n). Backend URL env var is EXPO_PUBLIC_BACKEND_URL. The real user is actively using the preview: the linked admin jmgs48642@gmail.com (parent 6ae34bf6) was created and then deleted through the API with the real account's token during this session (log line 'DELETE /api/admins/6ae75cc974b3dfb806642c49'). Agents did not do that. Another owner, mazzarrir@gamil.com (no parent), also exists; leave it alone.",
+  "rca_of_issue": "Confirmed fixed. Before: two owner docs had the same email and login's find_one returned the demo doc, so the real password was checked against the wrong hash. Now: the demo email is restored, the unique index blocks duplicates, and the failed_logins increment on 6ae34bf6 after a wrong attempt proves login resolves to the real account."
+}

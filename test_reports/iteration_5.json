@@ -1,0 +1,52 @@
+{
+  "summary": "Tested the iteration-6 features end-to-end on backend and frontend (Expo web, 375x667). Backend: 9/9 new tests pass. They cover assigned_at on create, reset on reassign and null on unassign, scheduled_for, pickup_phone, settings emergency_phones (GET/PUT, 422 above 5, 403 for courier), the courier/orders sections with since, and payout amount equal to the sum of the marked orders' fees. 2 regression tests were outdated (they expected total-based sums); I updated them and all 32 tests now pass. Frontend: every requested flow works. No register link on login; scheduling with a future date and time shows 'Programado' on the card; card-elapsed shows; emergency phones save; courier elapsed timer, call-business, NavSheet (Google and Waze open the right URLs), /courier-map with all tasks, emergency sheet, 'Entregadas hoy' and 'Canceladas hoy' sections; deliver with photo and note (both stored in the DB); history, payouts and reports all load. Issues found: 1 plural bug and a few minor UX/code points. No deprecated Expo packages detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/register", "issue": "The owner registration endpoint is still public, even though the UI no longer offers registration. Anyone can create an owner account through the API. Disable it or protect it if registration is meant to be admin-only."},
+      {"endpoint": "GET /api/payouts", "issue": "The last payout lookup db.payouts.find_one({courier_id}) does not filter by owner_id. Harmless today, but inconsistent with payout_history."},
+      {"endpoint": "POST /api/orders", "issue": "scheduled_for is a free-form string with no ISO validation. Invalid strings are stored and later break new Date() / format() in the UI."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Gestión > Repartidores > pay-courier-sheet", "issue": "The copy reads 'Suma de los costos de envío de 1 tareas entregadas sin pagar' (wrong plural). Use plural(count,'tarea entregada','tareas entregadas'). Reference: app/(owner)/manage.tsx:234", "testID": "pay-courier-sheet", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "courier-map shares the cache with the courier home", "issue": "courier-map.tsx:20 uses queryKey ['courier-orders'] but calls /courier/orders WITHOUT ?since=. The two screens write the same cache, and the map's fetch uses server UTC midnight instead of local midnight. Today's delivered/cancelled lists on the home screen can flicker or differ near midnight. Reuse the same queryFn, or use a different key.", "affected_testIDs": ["open-all-tasks-map", "cancelled-N"]}
+    ],
+    "design_issues": [
+      {"screen": "Owner order card (OrderCard)", "issues": ["At 375px, 'Desde que se creó: 0 min' and '· Programado 15 nov 14:30' sit side by side and both wrap into 2 lines. Put Programado on its own row or shorten the copy."]},
+      {"screen": "Order detail /order/[id]", "issues": ["The scheduled date ('Programado') is not shown on the order detail screen, only on the list card."]},
+      {"screen": "Courier home", "issues": ["Elapsed for old tasks shows 'Llevas 55 h 12 min'. Consider days, e.g. '2 d 7 h'.", "The emergency button is an icon only (alert-circle) with no label. A visible 'SOS' label would help first-time couriers.", "Delivered rows ('Entregadas hoy') have no testID (delivered-N), while cancelled rows have one."]},
+      {"screen": "New order: schedule", "issues": ["An invalid time (e.g. 'ab', '99:99') silently falls back to 12:00 or clamps to 23:59 with no error. Today plus a time in the past is also accepted."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter6_features.py", "/app/backend/tests/seed_ui_iter6.py", "/app/test_reports/pytest/iter6.xml"],
+  "action_items": [
+    "Fix the plural in the pay-courier sheet copy (app/(owner)/manage.tsx:234).",
+    "courier-map.tsx: use the same queryFn as courier.tsx (with ?since=local midnight) or a separate queryKey.",
+    "Decide whether POST /api/auth/register should be disabled or protected now that the UI no longer exposes it.",
+    "Validate scheduled_for as ISO datetime in the backend (Pydantic datetime) and validate the HH:MM input on the frontend.",
+    "Optional: show Programado on order detail, improve card layout at 375px, add testID delivered-N."
+  ],
+  "critical_code_review_comments": [
+    "src/components/NavSheet.tsx: the exported NavButtons() returns an empty View. Dead code, remove it.",
+    "login.tsx still contains the 'register' Mode branch and register fields (dead code, since the register tab/link is no longer reachable).",
+    "server.py is 1119 lines (>700). Consider splitting it into routers (orders, couriers, payouts, courier-side).",
+    "pay_courier runs 2 queries over the same ids (find ids, then find again for fees). They could be merged; no correctness issue."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter6_features.py (new)",
+    "/app/backend/tests/seed_ui_iter6.py (new)",
+    "/app/backend/tests/test_courier_history.py (updated outdated total-based assertions to the fee-based total_collected)",
+    "/app/backend/tests/test_delivery_api.py (courier location test now uses Madrid coords instead of Buenos Aires -34.6,-58.38)"
+  ],
+  "success_rate": {"backend": "100% (32/32 incl. regression after updating outdated asserts)", "frontend": "~95% (all flows work; 1 copy bug)"},
+  "seed_data_creation": "Created TEST_iter6/TEST_ui_* orders on admin@delivery.com; all deleted afterwards. Side effects on the admin test account: emergency_phones are now ['600111222','112'] (was 1 phone), and the payout flow marked the pending orders of Carlos and Lucía paid (2 new payout records). Carlos's location had been moved to Buenos Aires (-34.6,-58.38) by the old test_delivery_api.py; restored to Madrid (40.4168,-3.7038).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest with -n 0. Do not touch the real user's data (pedidosconustedes@gmail.com). Business phones of the admin businesses are 1100000000. On web, the courier camera opens a file chooser: use page.expect_file_chooser with a PNG of at least 120x120 (generate one with test_photo_upload_iter5._png). The courier home stays mounted under /courier-map, so data-testid=trip-map matches 4 elements; scope the locator or use .last.",
+  "rca_of_issue": "Carlos showing in South America on the maps: test_delivery_api.py:176 posted /courier/location with -34.6,-58.38. Fixed the test to use Madrid coords and reset his location through the API."
+}

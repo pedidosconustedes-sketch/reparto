@@ -1,0 +1,95 @@
+{
+  "expo": {
+    "name": "Reparto",
+    "slug": "frontend",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "frontend",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.emergent.fallingcatch.o7d1p7",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Muestra tu ubicación al comercio durante entregas",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Sigue mostrando tu ubicación con la app cerrada",
+        "UIBackgroundModes": ["location", "remote-notification"],
+        "NSCameraUsageDescription": "Fotografía la entrega como comprobante para el comercio",
+        "CFBundleDevelopmentRegion": "es",
+        "CFBundleLocalizations": [
+          "es"
+        ],
+        "CFBundleAllowMixedLocalizations": true
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.emergent.fallingcatch.o7d1p7",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "CAMERA"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-image.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-status-bar",
+      "@react-native-vector-icons/ionicons",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Muestra tu ubicación al comercio durante entregas",
+          "locationAlwaysAndWhenInUsePermission": "Sigue mostrando tu ubicación con la app cerrada",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#ffffff"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Fotografía la entrega como comprobante para el comercio",
+          "photosPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-audio"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "locales": {
+      "es": "./locales/es.json"
+    }
+  }
+}

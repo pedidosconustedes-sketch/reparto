@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 13 tested both backend and frontend, plus regression. Backend: 9 of 12 new pytest cases passed. These pass: business photo visible to the owner, both couriers, and the same and a different business account of the owner, with 404 for a different owner and 401 for a bad token; GET /orders?active=true; courier delivered items carry business_photo and history. The 3 autocomplete cases FAIL. Photon (photon.komoot.io) refuses connections from this container (ECONNREFUSED in backend.err.log). osm_suggest only falls back to Nominatim when the query contains a house number. So queries without a house number ('Calle Mayor 28013', '28013', 'Calle Mayor Madrid') return []. Queries with a house number work and the 28013 result comes first ('Calle Mayor 5 28013', 'Gran Via 28 28013'). Regression: test_iter12_retest + test_courier_history, 25 of 25 pass. Frontend at 375x667, all pass except the address dropdown for postcode-only and street-plus-postcode queries. Owner cards on Inicio and Órdenes show 'Envío X €' and 'Cobrar al cliente Y €', or 'Ya pagado —' when paid. Torre de control renders a Leaflet map in an iframe with 16 markers; filters: Sin repartidor 6, Carlos 8, toggle back 16. Courier cards show avatar, order numbers, location age and Llamar. Courier home shows courier-home-map and delivered-{n} with business photo, name, address and 'Entregado a las HH:mm'. /courier-map opens from open-all-tasks-map with title 'Mis tareas (4) · por aceptar (2)' and 12 markers. /courier-history rows show business, 'Entregado a las HH:mm' and address. The address UI shows 'Sin sugerencias' for 'Calle Mayor 28013'. No deprecated Expo packages detected.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/places/autocomplete", "issue": "When Photon is unreachable or returns nothing, osm_suggest returns [] for any query without a house number, including postcode-only queries ('28013') and street plus postcode ('Calle Mayor 28013'). Nominatim is reachable and returns 'Calle Mayor, 28013 Madrid'. Root cause: server.py:157 `if want and not exact:` gates the Nominatim fallback on a typed house number. Fix: `if not rows or (want and not exact):`. Photon here fails with ECONNREFUSED, which may also happen in production.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "GET /api/places/autocomplete", "issue": "With the Nominatim fallback, a postcode-only query gets the label '28013, 28013 Madrid' (server.py:137: name and postcode are both the postcode). Remove the duplicate when street is empty and name == postcode."},
+      {"endpoint": "GET /api/places/autocomplete", "issue": "Latency: the first Nominatim call took about 8.3 s ('Calle Mayor 5 28013'), cached calls about 1 s. The 'faster with postcode' goal depends on Photon being reachable."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Address dropdown (order/new)", "issue": "Typing 'Calle Mayor 28013' shows 'Sin sugerencias' after 20 s because the backend returns []. 'Gran Via 28 28013' gives 1 suggestion in 2.4 s and selecting it shows 'verified'.", "affected_testIDs": ["customer-address-input", "customer-address-suggestion-0"]}
+    ],
+    "design_issues": [
+      {"screen": "courier-map", "issues": ["Orders waiting to be accepted use the same pickup and delivery icons as the courier's own tasks. 'POR ACEPTAR' appears only in the marker title, and the legend has no 'por aceptar' entry. Use a distinct color or icon for open orders."]},
+      {"screen": "courier home", "issues": ["The 'Ver el mapa a pantalla completa' button only appears when active.length > 1 (courier.tsx:346). A courier with 0-1 own tasks and several open orders cannot reach the combined map. Consider active.length + open.length > 1."]},
+      {"screen": "Torre de control", "issues": ["All courier markers use the same icon. Which courier has which order is only visible through the tray filter or marker titles, not on the map itself (pickups of the same business also stack on one point). Optional: courier initials or color on markers."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter13_cards_photo_maps.py",
+    "/app/backend/tests/unit_osm_suggest_iter13.py",
+    "/app/backend/tests/seed_ui_iter13.py",
+    "/app/test_reports/pytest/iter13.xml"
+  ],
+  "action_items": [
+    "HIGH: in osm_suggest (server.py about line 157), fall back to Nominatim when the Photon rows are empty or Photon failed, not only when a house number is typed. Then 'Calle Mayor 28013' and '28013' return results with the 28013 results first.",
+    "Fix the '28013, 28013 Madrid' duplicate label in _nominatim_rows for postcode-only results.",
+    "Courier map: give 'por aceptar' (open) markers a distinct look and add them to the legend. Consider showing the full-screen button when active + open > 1.",
+    "Optional: courier-history.tsx uses o.updated_at as the delivery time, while courier.tsx uses the 'entregado' history event. Use the history event in both so later edits (fee or payment) do not change the shown time."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1735 lines (>700). Split it into routers (auth, orders, courier, biz, places).",
+    "courier-history.tsx:136-139 shows updated_at as the delivery time, and /courier/history filters on updated_at. If an order is edited after delivery, the time and period bucket are wrong.",
+    "courier-map.tsx: openQ errors are not handled (only q.isLoading is). If open-orders fails, the map silently shows only the courier's own tasks."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter13_cards_photo_maps.py (new)",
+    "/app/backend/tests/unit_osm_suggest_iter13.py (new)",
+    "/app/backend/tests/seed_ui_iter13.py (new)"
+  ],
+  "success_rate": {"backend": "75% (9/12 new; 25/25 regression)", "frontend": "90% (all flows pass except the address dropdown without a house number)"},
+  "seed_data_creation": "seed_ui_iter13.py create made TEST_UIBiz13 with an account and photo plus orders #1363-1367. All of it was deleted with 'delete'. No TEST_ businesses, users or orders remain, and no accounts are locked.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Photon is ECONNREFUSED from this container, so only Nominatim works (1 req/s). Use queries with a house number for positive cases. Run with: export $(grep EXPO_PUBLIC_BACKEND_URL /app/frontend/.env); pytest tests/test_iter13_cards_photo_maps.py -n 0. The Leaflet map renders inside an iframe: use page.frame_locator('[data-testid=control-tower-map] iframe') to count .leaflet-marker-icon.",
+  "rca_of_issue": "Autocomplete is empty for 'Calle Mayor 28013'. Steps: GET /api/places/autocomplete?q=Calle%20Mayor%2028013 returns {suggestions: [], source: osm}. backend.err.log shows 'Photon suggest failed ... Connection refused'. The house-number regex matches nothing in '28013' (5 digits), so want=None and the Nominatim fallback is skipped. Swapping in Nominatim (unit_osm_suggest_iter13.py) returns 'Calle Mayor, 28013 Madrid', which proves the ordering logic itself works. Fix: change the fallback condition."
+}

@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 8: Verified bundling fix + security-audit changes. Web preview loads with no bundling/page errors; login screen renders; owner login works; all owner tabs (Inicio, Órdenes, Mapa, Gestión) and business detail open without errors; business-account create/remove from the business detail sheet works (the renamed confirmAccDel flow works). Courier login + home + Tareas libres + accept work. Photo token: /photo-token works, photo endpoints accept the photo token and reject the session JWT (401), /auth/me rejects the photo token (401); delivery photos and courier avatars display in the UI (200 image/png). Upload sniffing: SVG/text return 400, PNG/JPEG work, nosniff + CSP headers are present. Lockout: the 6th attempt returns 429 for both business and courier (temp accounts), and the UI shows the Spanish lock message. Change password works in the API and the UI (old token 401, new token works, old password rejected, new password works). cafe@delivery.com returns 401; the admin password survives a backend restart. Business flow: a Libre order created in the business UI is seen and accepted by a courier in the UI. Issues found: (1) HIGH: the lockout can be bypassed with parallel requests (non-atomic counter); (2) error toasts in the ChangePasswordSheet are hidden behind the modal; (3) an owner resetting a business password via PUT /businesses/{bid}/account neither bumps auth_version nor clears the lock; (4) the order detail screen spins forever on a 404. No deprecated Expo packages found.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/auth/login, POST /api/auth/courier/login", "issue": "Lockout bypass by sending requests at the same time. check_login (server.py:371-388) reads failed_logins and then $sets fails+1 from a stale read, so parallel attempts don't add up. Reproduced: 20 wrong PINs sent in parallel -> 20x401, 0x429, and the correct PIN still logs in right after (account never locked). With a 6-digit courier PIN this defeats the brute-force protection. Fix: use an atomic find_one_and_update({_id}, {$inc: {failed_logins: 1}}, return_document=AFTER) and set locked_until when the returned count >= 5.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "PUT /api/businesses/{bid}/account", "issue": "When the owner resets an existing business account's password, server.py:780 sets only email/password_hash/name. It does not $inc auth_version, so old business sessions stay valid after the reset. It also does not clear locked_until/failed_logins, so the owner cannot unlock a locked business (verified: login with the new password still returns 429)."},
+      {"endpoint": "GET /api/photo-token", "issue": "Photo tokens carry no 'ver' claim, so they stay valid for up to 30 min after a password change or session revocation (low risk, read-only)."},
+      {"endpoint": "POST /api/auth/courier/login", "issue": "Lockout is per account only, so anyone who knows a courier's phone number can lock them out for 15 min with 5 wrong PINs (DoS). Consider adding IP-based throttling."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ChangePasswordSheet / Toast", "issue": "Error toasts (e.g. 'La contraseña actual no es correcta') are drawn behind the Sheet modal overlay, so the user gets no visible feedback when the current password is wrong. The toast is in the DOM but elementFromPoint does not hit it. Show the error inline in the sheet (e.g. a Text with testID change-password-error) or render the toast above modals.", "testID": "change-password-save", "priority": "MEDIUM"},
+      {"component": "Order detail (app/order/[id].tsx)", "issue": "When GET /api/orders/{id} returns 404 (order not found or not owned), the screen shows 'Orden #' with an infinite spinner instead of an error/empty state.", "testID": "order-status-badge", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Courier home", "issues": ["At a 375px width the header greeting is cut off to 'Hola, ...'; the courier's name is never visible"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter8_security.py", "/app/backend/tests/test_iter7_business_open_orders.py", "/app/backend/tests/race_lockout_check.py", "/app/test_reports/pytest/iter8_security.xml"],
+  "action_items": [
+    "HIGH: Make the login failure counter atomic in check_login (find_one_and_update with $inc, then lock when the count >= MAX_FAILS) so parallel requests can't bypass the lockout. Re-run /app/backend/tests/race_lockout_check.py; expected: most of the 20 attempts return 429 and the correct PIN returns 429 afterwards.",
+    "PUT /api/businesses/{bid}/account: when updating an existing account, also $inc auth_version and reset failed_logins/locked_until.",
+    "ChangePasswordSheet: show API errors inline inside the sheet (the toast is hidden behind the modal).",
+    "Order detail: handle query errors (404) with an error state and a back action instead of an endless spinner.",
+    "Optional: deduplicate parallel /photo-token fetches in getPhotoToken by caching the in-flight promise (4 parallel calls seen on one screen), and add .catch to Avatar/DeliveryPhoto photoUrl promises."
+  ],
+  "critical_code_review_comments": [
+    "server.py check_login: non-atomic read-modify-write on failed_logins (race, confirmed).",
+    "server.py set_business_account: a password reset does not revoke sessions or clear the lock.",
+    "src/api.ts getPhotoToken: no in-flight dedup, so N avatars mounting at once trigger N /photo-token requests.",
+    "src/components/Avatar.tsx:18 and DeliveryPhoto.tsx:16: the promise has no catch, so a failed photo-token request causes an unhandled rejection.",
+    "server.py is 1484 lines; consider splitting it into routers (auth, photos, businesses, orders, courier, biz)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter8_security.py (new)", "/app/backend/tests/race_lockout_check.py (new)", "/app/backend/tests/test_iter7_business_open_orders.py (adapted: temp business account instead of cafe@delivery.com; photo endpoints use /photo-token)"],
+  "success_rate": {"backend": "100% of the 14 iter8 tests + 15 adapted iter7 tests pass; 1 extra security issue found (lockout race)", "frontend": "~95% (all requested flows pass; error toast hidden in the change-password sheet)"},
+  "seed_data_creation": "Temporary business accounts (test_*@example.com, test_ui_biz@example.com) and temp couriers (TEST_Lock, TEST_Race) were created and deleted. Test orders (TEST_Cliente, TEST_UI Cliente #1318) were cancelled. Carlos Gómez's avatar was re-uploaded (PNG). Admin password unchanged (Admin12345). No locked accounts left.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest with -n 0 (serial): the module fixtures create one business account on businesses[0], and parallel xdist workers overwrite each other. The admin owner id is 6ae347236362b29c3e2fb5c8 and Café Aroma's id is 6ae347236362b29c3e2fb5c9. Owner tab testIDs: tab-index/orders/map/manage. Order 6ae65da94c392d9c507c7d5f (#1305, cancelled) has a delivery photo and can be used for the UI photo check.",
+  "rca_of_issue": "Original bug: a duplicate `confirmDel` const in app/business/[id].tsx caused a Babel SyntaxError and broke the bundle. Verified fixed: the bundle loads and business detail and account removal (confirmAccDel) work. New lockout race: check_login reads the user doc, verifies bcrypt (slow, ~100ms+), then writes failed_logins = stale+1. Concurrent requests all read the same value, so the counter never reaches 5."
+}

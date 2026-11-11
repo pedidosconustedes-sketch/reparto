@@ -1,0 +1,37 @@
+{
+  "summary": "Retest of the iteration 8 fixes. Backend: 8 of 9 tests passed (test_iter9_retest.py, run serially). The atomic $inc counter works: 20 parallel wrong PINs now lock the account and the correct PIN afterwards gets 429. The 5-attempt limit can still be bypassed for requests that are already in flight: the lock check runs before the slow bcrypt verify, so every request in a parallel burst that reads the doc before the lock is set still gets its PIN checked. In a 30-request burst the correct PIN (sent last) was accepted with 200. In a 100-request burst, 25 guesses were checked (401) before 429 took effect, against a limit of 5. The owner account reset works: it bumps auth_version (the old business token gets 401 on /biz/me) and clears the lockout. Change-password with a wrong current password returns 400 and the admin password is unchanged. UI: the change-password error shows inside the sheet ('La contraseña actual no es correcta'). Only one /photo-token request is made per app load (de-duplication works). Courier avatars and the delivery photo on order #1305 load with 200. Owner, courier and temporary business logins work, with no page errors. The courier 'Hola, name' header cuts the name off with an ellipsis and does not shrink the font: at 375px 'Hola, Carlos' shows as 'Hola, Ca…', and at 320px it shows as 'Hol…' with 'En línea' wrapped onto two lines. No deprecated Expo packages were seen in the reviewed files.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/auth/courier/login, POST /api/auth/login", "issue": "The lockout can still be bypassed by requests already in flight. check_login (server.py:371-386) checks locked_until on the doc it read before the bcrypt verify. Every request in a parallel burst that read the doc before the lock was set still gets verified, and a correct secret gets 200. Reproduced: in a 30-request burst ending with the correct PIN, 29 got 401 and the correct PIN got 200. In a 100-request burst, 25 got 401 (verified) and 75 got 429. So an attacker gets about 5x the limit, or more with larger bursts. The sequential lockout and the 20-parallel-then-correct case now pass.", "priority": "MEDIUM"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/auth/change-password", "issue": "Wrong current_password attempts are not counted in failed_logins, so a stolen session can brute-force the current password without limit (low risk)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "courier.tsx header", "issues": ["'Hola, {firstName}' (courier.tsx:243, style hello at :488) only gets an ellipsis; the font does not shrink. At 375px 'Hola, Carlos' shows as 'Hola, Ca…'. At 320px it shows as 'Hol…' and the status 'En línea' wraps onto two lines. The online switch, the SOS pill and logout take up most of the row. Suggest a smaller font size (for example 18–20), numberOfLines={1} on statusText, a smaller SOS pill, or moving the greeting to its own row."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter9_retest.py", "/app/backend/tests/burst_lockout_check.py", "/app/backend/tests/temp_biz_account.py", "/app/test_reports/pytest/pytest_iter9.xml"],
+  "action_items": [
+    "MEDIUM: Close the in-flight lockout race in check_login. Option A: after a successful verify_secret, re-read the doc (or use find_one_and_update with the filter {_id, $or:[{locked_until:null},{locked_until:{$lte:now}}]}) and return 429 if it is now locked. Option B: reserve an attempt atomically before verifying, with $inc attempts and a filter on lock/attempt count, and reject when the count is >= MAX_FAILS. Verify with /app/backend/tests/burst_lockout_check.py and test_iter9_retest.py::test_correct_pin_inside_parallel_burst.",
+    "LOW: Courier header: make 'Hola, name' fit at 375px (smaller font or a layout change), and keep 'En línea' on one line at 320px.",
+    "Optional: count wrong current_password attempts in /auth/change-password toward failed_logins."
+  ],
+  "critical_code_review_comments": [
+    "check_login is a check-then-act sequence: the lock check (line 374) and the bcrypt verify (line 377) both use a stale doc. Only the counter is atomic.",
+    "api.ts getPhotoToken: sharing the in-flight promise (photoTokReq ??=) with .finally works as intended; one request per load was seen.",
+    "Avatar and DeliveryPhoto now .catch the token errors and fall back to initials or the 'missing' placeholder."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter9_retest.py", "/app/backend/tests/burst_lockout_check.py", "/app/backend/tests/temp_biz_account.py"],
+  "success_rate": {"backend": "89% (8/9)", "frontend": "100% of the retest flows (one LOW design issue)"},
+  "seed_data_creation": "Temporary TEST_ couriers and businesses with their login accounts were created and deleted. failed_logins/locked_until were reset on all users (0 locked). The admin password is still Admin12345 (verified with a 200 login).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest with -n 0. test_correct_pin_inside_parallel_burst is the regression for the in-flight lockout race. Owner Gestión: the change-password sheet animates in; wait about 1.5s before tapping change-password-save. Login tab testIDs: login-tab-owner/business/courier. Order 6ae65da94c392d9c507c7d5f has a delivery photo.",
+  "rca_of_issue": "In check_login, the doc is read once (by the login endpoint) before the slow bcrypt verify. Parallel requests all see locked_until=None, so each one verifies its secret. The atomic $inc only decides when to lock, not whether a request that is already in flight gets evaluated. Mitigation: re-check the lock atomically after verify, or reserve the attempt before verify."
+}

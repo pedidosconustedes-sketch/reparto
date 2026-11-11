@@ -1,0 +1,33 @@
+{
+  "summary": "Tested per-business order numbering (backend + UI) and the incident alert regression. Backend: 12/12 pytest pass. Migration renumber_per_business is correct: all 7 businesses have numbers 1..n by created_at with no duplicates, and the counters orders_biz_{bid} match the max number. A new business's first order is #1, two businesses both get #1, POST /api/biz/orders and POST /api/orders share the same per-business sequence, 5 concurrent creates get unique numbers 3..7, and the courier sees the same number. All push texts use :02d. UI (375x667): zero-padded numbers verified on the owner Inicio cards, the Órdenes list, the 'Orden #01' detail title, the Mapa courier chip ('#02, #01…'), the business /biz list ('#01 · …'), the 'Pedido #01' detail title, the courier kickers (ENTREGA ACTUAL/SIGUIENTE/LIBRE · #NN) and the IncidentSheet title 'Incidencia · #01'. Incident regression passes: on owner Inicio the toast '⚠️ Incidencia #02 · …' and the card banner appeared at the same poll tick (delta ~0s, ~4s after the POST). One bug found: the courier toast for an assigned or removed task is not padded ('Nueva tarea asignada: #2').",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "courier.tsx assign/remove toast", "issue": "Toast shows raw numbers, not zero-padded. Reproduced live: 'Nueva tarea asignada: #2'. The same applies to the 'Tarea cancelada o retirada: #N' toast. Reference: /app/frontend/app/courier.tsx:85-86 (uses n directly instead of num(n)).", "testID": "n/a (toast)", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "courier.tsx / owner Mapa courier chip", "issues": ["Numbers now collide across businesses. The courier list showed 'LIBRE · #02' twice and '#04'/'#01' side by side, and the Mapa chip lists '#02, #01, #04…' with no business. The card bodies show the business name, but the toasts and the Mapa chip do not. Consider adding the business name to the courier assign toast and the map chip, e.g. '#02 Café Aroma'."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter21_biz_numbering.py", "/app/backend/tests/iter21_db_numbering_check.py", "/app/backend/tests/seed_ui_iter21.py", "/app/test_reports/pytest/pytest_iter21.xml"],
+  "action_items": [
+    "courier.tsx:85-86: use num(n) in the 'Nueva tarea asignada' and 'Tarea cancelada o retirada' toasts, e.g. added.map(([, n]) => `#${num(n)}`).join(', ').",
+    "Optional UX: add the business name to the courier assign/remove toast and the owner Mapa courier chip, since #NN is no longer unique across businesses.",
+    "Optional cleanup: the legacy global counters orders_{owner_id} (seq 1552/1055) are no longer used."
+  ],
+  "critical_code_review_comments": [
+    "build_order: the $max(last number) + $inc pattern is atomic and safe. The concurrency test with 5 parallel creates gave unique, sequential numbers.",
+    "testIDs (order-card-N, courier-order-N, biz-order-N, incident-banner-N) can now collide across businesses. Tests must filter by text or use .first. Consider switching testIDs to o.id.",
+    "Orders keep their business_id after a business is deleted, and its counter stays. This is harmless.",
+    "server.py is 2078 lines, well over the 700-line guideline. Consider splitting it into routers."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter21_biz_numbering.py", "/app/backend/tests/iter21_db_numbering_check.py", "/app/backend/tests/seed_ui_iter21.py"],
+  "success_rate": {"backend": "100%", "frontend": "95% (1 unpadded toast)"},
+  "seed_data_creation": "Created TEST_Num1/TEST_Num2 businesses, business login test_num21*@delivery.com and TEST_ orders. All were removed, and so were their counters. The db.meta biz_numbering_v1 flag was not touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest with -n 0: the module-scoped fixture creates a business account with a fixed email, and xdist splits it, which causes 409. Use seed_ui_iter21.py create/cleanup for UI data. The owner incident toast and banner both come from 10s polling, so allow up to ~12s.",
+  "rca_of_issue": "Courier assign/remove toast: courier.tsx builds the Map<id, number> from raw o.number and joins it without the num() helper. All other display paths use num()."
+}
