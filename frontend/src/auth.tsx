@@ -46,22 +46,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signOut]);
 
 const signIn = useCallback(async (path: string, body: object) => {
-      const r = await api<any>(path, { method: "POST", body });
-      
-      // Esto imprimirá en la consola del navegador la respuesta exacta del servidor
-      console.log("Respuesta completa del backend:", r);
+    const r = await api<any>(path, { method: "POST", body });
+    
+    // Esto mostrará la respuesta en texto plano en la consola
+    console.log("Respuesta en texto:", JSON.stringify(r));
 
-      if (!r || !r.token) {
-        throw new Error("El servidor no devolvió un token válido");
-      }
+    if (!r || !r.token) {
+      throw new Error("El servidor no devolvió un token válido");
+    }
 
-      signedOut.current = false;
-      clearPhotoToken();
-      await storage.secureSet(TOKEN_KEY, r.token);
-      setUser(r.user);
-      return r.user;
-    }, []);
-
+    signedOut.current = false;
+    clearPhotoToken();
+    await storage.secureSet(TOKEN_KEY, r.token);
+    setUser(r.user);
+    return r.user;
+  }, []);
   // Re-register for push on every app open / login (tokens can rotate).
   useEffect(() => {
     if (user) registerForPush();
