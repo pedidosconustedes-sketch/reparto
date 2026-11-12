@@ -27,36 +27,48 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
 
 const submit = async () => {
-      setError("");
-      setBusy(true);
-      try {
-        let endpoint = "";
-        let bodyData = {};
+  console.log("¡Se ha pulsado el botón de enviar!");
+  setError("");
+  setBusy(true);
+  try {
+    let endpoint = "";
+    let bodyData = {};
 
-        if (mode === "owner") {
-          endpoint = "/auth/login";
-          bodyData = { email: email.trim(), password };
-        } else if (mode === "register") {
-          endpoint = "/auth/register";
-          bodyData = { name, email: email.trim(), password, phone };
-        } else {
-          endpoint = "/auth/courier/login";
-          bodyData = { phone, pin };
-        }
+    if (mode === "owner") {
+      endpoint = "/auth/login";
+      bodyData = { email: email.trim(), password };
+    } else if (mode === "register") {
+      endpoint = "/auth/register";
+      bodyData = { name, email: email.trim(), password, phone };
+    } else {
+      endpoint = "/auth/courier/login";
+      bodyData = { phone, pin };
+    }
 
-        const res = await API<any>(endpoint, { method: "POST", body: bodyData });
-        
-        if (res && res.token) {
-          await storage.secureSet(TOKEN_KEY, res.token);
-        }
-        
-        router.replace("/");
-      } catch (e: any) {
-        setError(e?.message || "Error al ingresar");
-      } finally {
-        setBusy(false);
-      }
-    };
+    const res = await fetch(https://reparto-app.onrender.com${endpoint}, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.detail || "Error en el servidor");
+    }
+
+    if (data.token) {
+      await storage.secureSet(TOKEN_KEY, data.token);
+    }
+
+    router.replace("/");
+  } catch (e: any) {
+    console.error("Error capturado:", e);
+    setError(e?.message || "Error al ingresar");
+  } finally {
+    setBusy(false);
+  }
+};
 
   const tabs: { key: Mode; label: string }[] = [
   { key: "owner", label: "Admin" },
