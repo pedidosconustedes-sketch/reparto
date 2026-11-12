@@ -58,6 +58,32 @@ const submit = async () => {
     }
 
     if (data.token) {
+      // Guardar el token de forma segura en el almacenamiento local del navegador
+      localStorage.setItem("token", data.token);
+    }
+
+    router.replace("/");
+  } catch (e: any) {
+    console.error("Error capturado:", e);
+    setError(e?.message || "Error al ingresar");
+  } finally {
+    setBusy(false);
+  }
+};
+
+    const res = await fetch(https://reparto-app.onrender.com${endpoint}, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.detail || "Error en el servidor");
+    }
+
+    if (data.token) {
       await storage.secureSet(TOKEN_KEY, data.token);
     }
 
