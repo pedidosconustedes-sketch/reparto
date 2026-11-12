@@ -26,26 +26,37 @@ export default function Login() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
- const submit = async () => {
-  console.log("¡Se ha pulsado el botón de enviar!");
-  setError("");
-  setBusy(true);
-  try {
-    if (mode === "owner") {
-      await signIn("/auth/login", { email: email.trim(), password });
-    } else if (mode === "register") {
-      await signIn("/auth/register", { name, email: email.trim(), password, phone });
-    } else {
-      await signIn("/auth/courier/login", { phone, pin });
-    }
-    router.replace("/");
-  } catch (e: any) {
-    console.error("Error capturado:", e);
-    setError(e?.message || "Error al ingresar");
-  } finally {
-    setBusy(false);
-  }
-};
+const submit = async () => {
+      setError("");
+      setBusy(true);
+      try {
+        let endpoint = "";
+        let bodyData = {};
+
+        if (mode === "owner") {
+          endpoint = "/auth/login";
+          bodyData = { email: email.trim(), password };
+        } else if (mode === "register") {
+          endpoint = "/auth/register";
+          bodyData = { name, email: email.trim(), password, phone };
+        } else {
+          endpoint = "/auth/courier/login";
+          bodyData = { phone, pin };
+        }
+
+        const res = await API<any>(endpoint, { method: "POST", body: bodyData });
+        
+        if (res && res.token) {
+          await storage.secureSet(TOKEN_KEY, res.token);
+        }
+        
+        router.replace("/");
+      } catch (e: any) {
+        setError(e?.message || "Error al ingresar");
+      } finally {
+        setBusy(false);
+      }
+    };
 
   const tabs: { key: Mode; label: string }[] = [
   { key: "owner", label: "Admin" },
