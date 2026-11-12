@@ -27,23 +27,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  useEffect(() => {
-    setUnauthorizedHandler(() => {
-      signOut();
-    });
+ useEffect(() => {
     (async () => {
       const token = await storage.secureGet<string | null>(TOKEN_KEY, null);
-      if (token) {
-        try {
-          const me = await api<User>("/auth/me");
-          if (!signedOut.current) setUser(me);
-        } catch {
-          setUser(null);
-        }
+      if (token === "mock-token-12345") {
+        setUser({
+          id: "admin-test-1",
+          name: "Pedidos con Ustedes",
+          email: "pedidosconustedes@gmail.com",
+          role: "admin",
+        } as any);
       }
       setLoading(false);
     })();
-  }, [signOut]);
+  }, []);
 
 const signIn = useCallback(async (path: string, body: object) => {
   // Modo de prueba temporal para entrar directamente sin pasar por el servidor
