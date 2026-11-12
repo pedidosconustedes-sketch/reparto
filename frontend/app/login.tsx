@@ -26,20 +26,24 @@ export default function Login() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const submit = async () => {
-    setError("");
-    setBusy(true);
-    try {
-      if (mode === "owner" || mode === "business") await signIn("/auth/login", { email: email.trim(), password });
-      else if (mode === "register") await signIn("/auth/register", { name, email: email.trim(), password });
-      else await signIn("/auth/courier/login", { phone, pin });
-      router.replace("/");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al ingresar");
-    } finally {
-      setBusy(false);
+ const submit = async () => {
+  setError("");
+  setBusy(true);
+  try {
+    if (mode === "owner") {
+      await signIn("/auth/login", { email: email.trim(), password });
+    } else if (mode === "register") {
+      await signIn("/auth/register", { name, email: email.trim(), password, phone });
+    } else {
+      await signIn("/auth/courier/login", { phone, pin });
     }
-  };
+    router.replace("/");
+  } catch (e: any) {
+    setError(e?.message || "Error al ingresar");
+  } finally {
+    setBusy(false);
+  }
+};
 
   const tabs: { key: Mode; label: string }[] = [
   { key: "owner", label: "Admin" },
