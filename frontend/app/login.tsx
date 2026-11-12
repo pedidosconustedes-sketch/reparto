@@ -27,6 +27,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
 
  const submit = async () => {
+  console.log("¡Se ha pulsado el botón de enviar!");
   setError("");
   setBusy(true);
   try {
@@ -39,6 +40,7 @@ export default function Login() {
     }
     router.replace("/");
   } catch (e: any) {
+    console.error("Error capturado:", e);
     setError(e?.message || "Error al ingresar");
   } finally {
     setBusy(false);
