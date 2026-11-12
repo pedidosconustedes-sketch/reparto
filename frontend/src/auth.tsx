@@ -46,10 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signOut]);
 
 const signIn = useCallback(async (path: string, body: object) => {
-    const r = await api<any>(path, { method: "POST", body });
-    
-    // Esto mostrará la respuesta en texto plano en la consola
-    console.log("Respuesta en texto:", JSON.stringify(r));
+    const r = await API<any>(path, { method: "POST", body });
+
+    console.log("Respuesta completa del servidor:", JSON.stringify(r));
 
     if (!r || !r.token) {
       throw new Error("El servidor no devolvió un token válido");
