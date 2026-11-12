@@ -1,8 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
-
-import  API, { clearPhotoToken, setUnauthorizedHandler, TOKEN_KEY, User } from "@/src/api";
-import { queryClient } from "@/src/query-client";
-import { registerForPush } from "@/src/push";
+import API, { clearPhotoToken, setUnauthorizedHandler, TOKEN_KEY, User } from "@/src/api";
+import { registerForPushNotifications } from "@/src/push";
 import { storage } from "@/src/utils/storage";
 
 type AuthCtx = {
@@ -22,52 +20,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     signedOut.current = true;
     clearPhotoToken();
-    await storage.secureRemove(TOKEN_KEY);
-    queryClient.clear();
+    await storage.secureDelete(TOKEN_KEY);
     setUser(null);
+    API.clear();
   }, []);
 
- useEffect(() => {
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      signOut();
+    });
+  }, [signOut]);
+
+  useEffect(() => {
     (async () => {
       const token = await storage.secureGet<string | null>(TOKEN_KEY, null);
-      if (token === "mock-token-12345") {
-        setUser({
-          id: "admin-test-1",
-          name: "Pedidos con Ustedes",
-          email: "pedidosconustedes@gmail.com",
-          role: "admin",
-        } as any);
+      if (token) {
+        try {
+          const me = await API<User>("/auth/me");
+          if (!signedOut.current) setUser(me);
+        } catch {
+          setUser(null);
+        }
       }
       setLoading(false);
     })();
+  }, [signOut]);
+
+  const signIn = useCallback(async (path: string, body: object) => {
+    const r = await API<any>(path, { method: "POST", body });
+
+    if (!r || !r.token) {
+      throw new Error("El servidor no devolvió un token válido");
+    }
+
+    signedOut.current = false;
+    clearPhotoToken();
+    await storage.secureSet(TOKEN_KEY, r.token);
+    setUser(r.user);
+    return r.user;
   }, []);
 
-const signIn = useCallback(async (path: string, body: object) => {
-  // Modo de prueba temporal para entrar directamente sin pasar por el servidor
-  const mockUser = {
-    id: "admin-test-1",
-    name: "Pedidos con Ustedes",
-    email: "pedidosconustedes@gmail.com",
-    role: "admin"
-  };
-  
-  console.log("Entrando en modo de prueba directo...");
-  signedOut.current = false;
-  clearPhotoToken();
-  await storage.secureSet(TOKEN_KEY, "mock-token-12345");
-  setUser(mockUser);
-  return mockUser;
-}, []);
-  // Re-register for push on every app open / login (tokens can rotate).
   useEffect(() => {
-    if (user) registerForPush();
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (user) registerForPushNotifications();
+  }, [user]);
 
   return <Ctx.Provider value={{ user, loading, signIn, signOut }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {
-  const c = useContext(Ctx);
-  if (!c) throw new Error("useAuth outside AuthProvider");
-  return c;
+  const doCtx = useContext(Ctx);
+  if (!doCtx) throw new Error("useAuth fuera de AuthProvider");
+  return doCtx;
 }
