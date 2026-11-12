@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 
-import { api, clearPhotoToken, setUnauthorizedHandler, TOKEN_KEY, User } from "@/src/api";
+import { API, clearPhotoToken, setUnauthorizedHandler, TOKEN_KEY, User } from "@/src/api";
 import { queryClient } from "@/src/query-client";
 import { registerForPush } from "@/src/push";
 import { storage } from "@/src/utils/storage";
