@@ -42,10 +42,11 @@ export default function Login() {
   };
 
   const tabs: { key: Mode; label: string }[] = [
-    { key: "owner", label: "Admin" },
-    { key: "business", label: "Comercio" },
-    { key: "courier", label: "Repartidor" },
-  ];
+  { key: "owner", label: "Admin" },
+  { key: "business", label: "Comercio" },
+  { key: "courier", label: "Repartidor" },
+  { key: "register", label: "Registrarse" },
+];
 
   return (
     <View style={s.root}>
