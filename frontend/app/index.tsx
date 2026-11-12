@@ -1,11 +1,30 @@
+import React from "react";
 import { Redirect } from "expo-router";
-
 import { useAuth } from "@/src/auth";
-import { Loading } from "@/src/components/ui";
+import { View, ActivityIndicator, Text } from "react-native";
 
 export default function Index() {
   const { user, loading } = useAuth();
-  if (loading) return <Loading />;
-  if (!user) return <Redirect href="/login" />;
-  return <Redirect href={user.role === "owner" ? "/(owner)" : user.role === "business" ? "/biz" : "/courier"} />;
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#28a745" />
+        <Text style={{ marginTop: 10 }}>Cargando Reparto...</Text>
+      </View>
+    );
+  }
+
+  if (!user) {
+    return <Redirect href="/login" />;
+  }
+
+  const role = user.role || "courier";
+  if (role === "owner") {
+    return <Redirect href="/(owner)" />;
+  } else if (role === "business") {
+    return <Redirect href="/biz" />;
+  } else {
+    return <Redirect href="/courier" />;
+  }
 }
