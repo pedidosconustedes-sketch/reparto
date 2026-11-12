@@ -46,20 +46,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signOut]);
 
 const signIn = useCallback(async (path: string, body: object) => {
-    const r = await API<any>(path, { method: "POST", body });
-
-    console.log("Respuesta completa del servidor:", JSON.stringify(r));
-
-    if (!r || !r.token) {
-      throw new Error("El servidor no devolvió un token válido");
-    }
-
-    signedOut.current = false;
-    clearPhotoToken();
-    await storage.secureSet(TOKEN_KEY, r.token);
-    setUser(r.user);
-    return r.user;
-  }, []);
+  // Modo de prueba temporal para entrar directamente sin pasar por el servidor
+  const mockUser = {
+    id: "admin-test-1",
+    name: "Pedidos con Ustedes",
+    email: "pedidosconustedes@gmail.com",
+    role: "admin"
+  };
+  
+  console.log("Entrando en modo de prueba directo...");
+  signedOut.current = false;
+  clearPhotoToken();
+  await storage.secureSet(TOKEN_KEY, "mock-token-12345");
+  setUser(mockUser);
+  return mockUser;
+}, []);
   // Re-register for push on every app open / login (tokens can rotate).
   useEffect(() => {
     if (user) registerForPush();
