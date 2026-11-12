@@ -72,3 +72,4 @@ export function useAuth() {
   if (!doCtx) throw new Error("useAuth fuera de AuthProvider");
   return doCtx;
 }
+ 
